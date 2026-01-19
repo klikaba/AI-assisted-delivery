@@ -1,0 +1,14 @@
+.DS_Store
+**/.DS_Store
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.env.*
+!.env.example
+opencode.local.jsonc
+
+# Platform Mock Runtime Data
+platform-mock/db.json
+platform-mock/plans/
