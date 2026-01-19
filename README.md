@@ -2,6 +2,8 @@
 
 > **"Bridging the Gap between Business Strategy and Technical Execution with AI-Driven Governance."**
 
+<!-- Commit to ensure proper author attribution -->
+
 ## 🔭 The Mission
 Our mission is to empower enterprise engineering organizations to adopt AI **without compromising safety, quality, or architectural integrity.** We transform the "Black Box" of AI coding into a transparent, governed, and highly-visible **Agentic SDLC**.
 
