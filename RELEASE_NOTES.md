@@ -1,5 +1,15 @@
 # Release Notes
 
+## 0.4.1
+
+Documentation-focused patch release.
+
+Highlights:
+
+- Expanded installation and update instructions for host repositories using `.agency/` as a git submodule.
+- Added prerequisites and basic usage guidance.
+- Clarified migration and repo policy: commit `.agency-rules.md`; keep `.agency-memory.json` local.
+
 ## 0.4.0
 
 This release makes the repository installable as a true `.agency/` submodule and improves portability for real-world host repos.
@@ -13,3 +23,8 @@ Highlights:
 Breaking changes:
 
 - Repository file layout is flattened (the previous internal `.agency/` folder is removed).
+
+Migration note:
+
+- Install this repo as a submodule mounted at `.agency/`.
+- Ensure your host repo commits `.agency-rules.md` (repo-level rules) and does NOT commit `.agency-memory.json` (local runtime memory).

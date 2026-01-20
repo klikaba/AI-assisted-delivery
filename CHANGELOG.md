@@ -12,6 +12,10 @@ This project follows Semantic Versioning (SemVer) with the caveat that `0.x` rel
 - Jira portability: prompts treat Jira status transitions as best-effort (labels remain the portable state machine).
 - Docs: update installation/paths to match submodule-first usage.
 
+## 0.4.1 - 2026-01-20
+
+- Docs: expand installation, prerequisites, and migration guidance.
+
 ## 0.3.0
 
 - Previous release.
