@@ -2,8 +2,6 @@
 
 > **"Bridging the Gap between Business Strategy and Technical Execution with AI-Driven Governance."**
 
-<!-- Commit to ensure proper author attribution -->
-
 ## 🔭 The Mission
 Our mission is to empower enterprise engineering organizations to adopt AI **without compromising safety, quality, or architectural integrity.** We transform the "Black Box" of AI coding into a transparent, governed, and highly-visible **Agentic SDLC**.
 
@@ -14,25 +12,52 @@ We envision a future where specialized AI Agents handle the heavy lifting of the
 
 ## ✅ What This Project Does (Capabilities)
 
-This repo is a **TUI-driven demo scaffold** for a governed SDLC that uses Jira + Confluence as the source of truth.
+This repo is a **portable Agentic SDLC Engine** designed to be dropped into any git repository. It orchestrates a governed workflow using Jira + Confluence as the source of truth.
 
-- **Role-based SDLC agents:** Product Owner, Planning, Architecture, Developer, QA, Code Review, Security, DevOps, Project Manager (`opencode.jsonc`, `prompts/`).
-- **Jira-driven state machine:** Agents discover work via `ai-state:*` labels and move tickets through the workflow (see label glossary below).
-- **Confluence spec generation:** Planning creates a spec page with a Page Properties table and `Spec Status: DRAFT` (`prompts/planning.md`).
-- **Dual-key governance gate:** Developer must verify Jira label `ai-state:approved` *and* Confluence `Spec Status: APPROVED` before coding (`prompts/dev.md`).
-- **Release gates:** Release requires `ai-state:verified` + `ai-state:reviewed` + `ai-state:security-pass` (`prompts/pm.md`).
-- **Audit trail:** Agents post comments back to Jira for plans, links, and reports (Planning link to spec, QA report, review/security results).
-- **Agency memory (demo):** Global rules are seeded and persisted in `platform-mock/memory.json`; project rules live in `.agencyrules.md` (demo-target only).
-- **Demo target application:** A small Express app in `demo-target/` used as the change surface for the demo.
-- **QA harness:** Playwright config in `demo-target/playwright.config.js` for generating/running E2E tests.
-- **Atlassian MCP integration:** Uses `mcp-remote` to connect the TUI to Jira/Confluence with browser auth (`opencode.jsonc`, `mcp/README.md`).
+- **Role-based SDLC agents:** Product Owner, Planning, Architecture, Developer, QA, Code Review, Security, DevOps, Project Manager.
+- **Jira-driven state machine:** Agents discover work via `ai-state:*` labels and move tickets through the workflow.
+- **Confluence spec generation:** Planning creates a spec page with a Page Properties table and `Spec Status: DRAFT`.
+- **Dual-key governance gate:** Developer must verify Jira label `ai-state:approved` *and* Confluence `Spec Status: APPROVED` before coding.
+- **Agency memory:** Inject corporate standards and project-specific rules into every AI interaction.
+- **Atlassian MCP integration:** Uses `mcp-remote` to connect the TUI to Jira/Confluence securely via browser authentication.
 
-## 🚫 What This Repo Does Not Do (Important Limits)
+---
 
-- Does **not** implement Jira/Confluence MCP servers (it relies on the official Atlassian MCP connector via `mcp-remote`) (`mcp/README.md`).
-- Does **not** create Jira workflows/statuses/fields for you; your Jira board must already match the required statuses.
-- Does **not** delete/archive Jira tickets or Confluence pages between runs; you clean those manually (`scripts/reset-demo.sh` only resets local repo state).
-- Is a **demo** of governance + orchestration patterns, not a production-ready delivery platform.
+## 📂 Project Structure (Drop-in Architecture)
+
+This tool is designed as a **portable agentic engine**. All configuration lives in the `.agency/` directory, keeping your project root clean.
+
+- `.agency/opencode.jsonc`: The main configuration file.
+- `.agency/prompts/`: The "Brain" (Shared System Prompts).
+- `.agency/rules.md`: **Global Rules** (Shared Corporate Policy).
+- `.agency-rules.md`: **Local Rules** (Project-Specific Overrides - create this in root).
+- `.agency-memory.json`: **Persistent Memory** (Local Runtime State - auto-generated in root).
+
+## 🚀 Quick Start (Any Repo)
+
+1. **Install:** Copy the `.agency/` folder (or `git submodule add` it) into your repo root.
+2. **Setup:** Run the interactive wizard to configure your project context:
+   ```bash
+   ./.agency/setup.sh
+   ```
+3. **Run:** Launch the agent interface:
+   ```bash
+   opencode --config .agency/opencode.jsonc
+   ```
+4. **Interact:** Select an agent (e.g., **Product Owner**) and start refining tickets from your Jira board.
+
+---
+
+## 🧱 Agency Memory (Context Engine)
+
+The platform includes a lightweight "Context Engine" that injects your corporate standards into every prompt.
+
+- **Global Rules:** `.agency/rules.md` (From the shared submodule).
+- **Local Rules:** `.agency-rules.md` (From your project root).
+- **Runtime Memory:** `.agency-memory.json` (Persisted facts like "Use port 8080").
+- **Mechanism:** `scripts/memory.js` merges all three sources at runtime.
+
+---
 
 ## 🕹️ User Interaction Model
 
@@ -62,27 +87,12 @@ The **OpenCode TUI** is where you trigger and interact with the agents.
 
 ### 1. Jira-Driven State Machine (Single Source of Truth)
 The platform uses your existing Atlassian ecosystem as its **Global State Engine**. Using namespaced labels (`ai-state:<STATUS>`) and strict status transitions, the platform provides 100% visibility to stakeholders.
-- **PO:** Moves `To Do` → `Selected for Development`.
-- **Planner:** Moves `Selected` → `In Planning` → `Waiting for Approval`.
-- **Dev:** Moves `Approved` → `In Progress` → `In QA`.
-- **PM:** Releases only after QA + gates, then moves to `Done`.
 
 ### 2. Dual-Key Governance (The Safety Lock)
 The **Developer Agent** is physically prevented from writing code unless **TWO** distinct conditions are met:
 1.  **Jira:** Ticket has the label `ai-state:approved`.
 2.  **Confluence:** The linked Spec Page has the status `APPROVED`.
 This ensures that every line of code traces back to an explicitly signed-off requirement.
-
-### 3. Release Gates (Review + Security)
-Before a ticket can be released, it must be **QA verified** and pass **Code Review** and **Security Audit**:
-- Required labels: `ai-state:verified`, `ai-state:reviewed`, `ai-state:security-pass`.
-These gates are label-based; the Jira Status remains **In QA** until release.
-
-### 4. Agency Memory (Context Awareness)
-Unlike generic AI tools, this platform respects your **Corporate Standards**.
-- **Global Rules:** Seeded in `platform-mock/sdk/memory.js` and persisted in `platform-mock/memory.json`.
-- **Project Rules (demo-target only):** Stored in `.agencyrules.md` (e.g., "Lint before commit").
-- **Mechanism:** `memory.js` loads `memory.json`, merges `.agencyrules.md`, and prints the combined rules at runtime.
 
 ---
 
@@ -133,344 +143,3 @@ Agents coordinate through Jira as the shared workspace:
 | **DevOps** | `opencode/minimax-m2.1-free` | Verifies Environment. |
 | **QA Engineer** | `opencode/minimax-m2.1-free` | Runs E2E Tests. |
 | **Project Manager** | `opencode/minimax-m2.1-free` | Syncs Governance & Releases. |
-
----
-
-## 🚀 Quick Start (TUI Workflow)
-
-1. **Select Agent:** Open OpenCode TUI and select an agent (e.g., **Product Owner**).
-2. **Scan:** The agent will find relevant tickets in Jira.
-3. **Collaborate:** Follow the **Interactive Protocol**. The agent will stop and ask for your approval at every step.
-4. **Follow the Runbook:** See **[DEMO_REAL.md](./DEMO_REAL.md)** for a full end-to-end scenario, including review and security gates.
-
----
-
-## 🎬 Demo Starting Point (Ticket + App)
-
-- **Seed ticket:** Create one Jira ticket in **To Do** (example summary: "Add Health Check Endpoint").
-- **Target app (for QA):** Start the demo app before QA steps: run `node index.js` from `demo-target/` and keep it running on `http://localhost:3000` (`demo-target/index.js`, `demo-target/playwright.config.js`).
-- **Reset between runs:** Use `./scripts/reset-demo.sh` to reset local code and memory; manually clean Jira/Confluence items between runs (`scripts/reset-demo.sh`).
-
-## 📂 Project Structure
-
-- `opencode.jsonc`: Agent configuration (TUI uses these definitions).
-- `prompts/`: System prompts with strict governance logic.
-- `demo-target/`: The actual application being built.
-- `platform-mock/`: **The Agency Memory Module.** (Contains `memory.js` and `memory.json`).
-
-## 🧱 Platform Mock (What it is)
-
-`platform-mock/` is a lightweight, local stand-in for the "context engine" used in the demo. It is not production code; it just simulates memory and rules so the prompts have something real to read.
-
-**Files**
-- `platform-mock/sdk/memory.js`: Loads persistent memory, merges `.agencyrules.md`, and prints the combined rules.
-- `platform-mock/memory.json`: The persistent memory store used across demo runs (reset by `scripts/reset-demo.sh`).
-
----
-
-## 🏢 Enterprise Hardening (Reference Architecture)
-
-This repo demonstrates a governed SDLC using prompts + Jira labels. For enterprise use, keep the UX pattern but move enforcement to **systems that cannot be bypassed** (PR protections + CI + immutable evidence), with a small **control plane service** as the authority.
-
-### ✅ The Golden Path (Bitbucket Cloud-first)
-
-**Principle:** Jira/Confluence are the collaboration surfaces; Bitbucket PR/CI are the hard gates; the control plane derives Jira state from verifiable evidence.
-
-1. **Intent Approval (Confluence):** Humans approve the *spec* (`Spec Status = APPROVED`).
-2. **Immutable Approval Record:** Control plane snapshots the Confluence page and computes a `SpecHash` (e.g., SHA-256 over a canonical export), and computes a `PlanHash` for the schema-validated plan JSON.
-3. **Implementation (Bitbucket PRs):** Developers/agents work via PRs only (no direct pushes to protected branches).
-4. **Enforcement (CI + Branch Protections):** PR merge is blocked unless required build statuses and required approvals exist.
-5. **Evidence & Traceability:** Control plane generates an immutable evidence bundle per ticket/release and writes back authoritative links/hashes into Jira.
-
-### 🧠 Control Plane Service (What it owns)
-
-Treat Jira labels (like `ai-state:*`) as **derived UI signals**, not authority. The control plane is the authority for:
-
-- Canonical ticket state (idempotent workflow; no “label truth”).
-- Approved artifact identities (`SpecHash`, `PlanHash`, `PolicyVersion`).
-- Multi-repo coordination (ticket → repos → PRs → commit SHAs).
-- Gate outcomes derived from verifiable evidence (build statuses, scan artifacts), not agent claims.
-- Immutable evidence bundle generation and storage.
-- Reconciliation loop to correct drift (webhook loss, manual edits, partial failures).
-
-### 🔒 Required Bitbucket Cloud Controls (Hard Gates)
-
-**Branch restrictions** (default branch):
-- Block direct pushes.
-- Require PRs.
-- Require N approvals (team policy).
-- Require successful build statuses (your CI contract).
-
-**Required status contract** (recommended v1 names; keep stable across repos):
-- `lint`
-- `tests`
-- `security-sast`
-- `security-sca`
-- `secrets-scan`
-- `policy-validate`
-
-Start with **Bitbucket Pipelines** for v1 standardization; swap to external CI later by preserving the same required status names.
-
-### 🧾 Minimal Jira Custom Fields (Authoritative State)
-
-For a single board spanning multiple repos, add fields like:
-
-- `AI Spec Page URL`
-- `AI Spec Status` (`DRAFT | APPROVED | CHANGES_REQUESTED`)
-- `AI Spec Hash`
-- `AI Plan` (attachment or large text)
-- `AI Plan Hash`
-- `AI Policy Version`
-- `AI Impacted Repos` (list of repo slugs/URLs)
-- `AI PR Links` (multi-value URLs)
-- `AI Evidence Bundle URL`
-- `AI Gate Summary` (human-readable “why blocked / what’s missing”)
-
-Optional but strongly recommended:
-- `AI Approved By` / `AI Approved At`
-- `AI Exceptions` (waivers with approver + expiry)
-
-### 👥 Subagents (Enterprise-Safe Responsibilities)
-
-In enterprise mode, subagents **produce evidence**; the control plane **sets state**.
-
-| Agent | Primary Outputs | Must NOT Be Able To Do |
-| --- | --- | --- |
-| Product Owner | refined ACs + Jira clarity | mark approvals / release |
-| Planning | Confluence spec (DRAFT) + plan JSON | approve spec/plan |
-| Architecture | diagrams/trade-offs in Confluence | change Jira gate state |
-| Project Manager | sync/reporting + release notes | “force pass” gates without evidence |
-| Developer | PR(s) + commits per plan | mark QA/review/security pass |
-| QA | tests + reports/artifacts | mark verified without CI evidence |
-| Code Review | review report + PR approvals | push/merge code |
-| Security | security report + scan review | push/merge code |
-| DevOps | pipeline templates + readiness | approve requirements/code |
-
-### 🛰️ Webhooks + Reconciliation (Reliability at scale)
-
-The control plane should ingest:
-- Confluence page updates (spec approval changes)
-- Jira issue updates/transitions (for visibility)
-- Bitbucket PR events (created/updated/merged)
-- Build status / pipeline events (check outcomes)
-
-And it should run a periodic reconciler to:
-- Re-link PRs to tickets (branch/PR title conventions like `DEMO-123`)
-- Recompute “gate truth” from current PR + status data
-- Detect spec/plan drift after approval and automatically block/requeue
-
-### 📈 Suggested Rollout (Low-risk adoption)
-
-1. **PR-first + required status checks** (Bitbucket protections + Pipelines contract).
-2. **Plan schema + evidence bundle** (machine-checkable artifacts, immutable storage).
-3. **Hash-based approvals** (dual-key becomes tamper-evident).
-4. **Policy-as-code** (OPA/Conftest) + least-privilege identities per agent.
-
----
-
-## 🛠️ V1 Implementation Spec (Bitbucket Cloud + Own Control Plane)
-
-This section is intentionally concrete so you can resume implementation later without re-deriving the design.
-
-### 1) Naming & Linking Conventions (Ticket → PRs)
-
-Pick one convention and enforce it everywhere (service rejects/flags non-conforming PRs).
-
-- **Branch naming:** `feature/<JIRA_KEY>-<short-slug>`
-- **PR title prefix:** `<JIRA_KEY>: ...`
-- **Commit messages:** `<JIRA_KEY>: ...`
-- **Multi-repo tickets:** allow multiple PRs as long as each PR satisfies the convention.
-
-The control plane links PRs to tickets by parsing:
-1) PR title, then 2) source branch name, then 3) commit messages (fallback).
-
-### 2) Canonical State Model (Service-Owned)
-
-Treat Jira Status/labels as *projections* of this canonical state.
-
-- `REFINEMENT` → ticket not ready for planning
-- `READY_FOR_PLAN` → refined; waiting for plan/spec
-- `PLAN_REVIEW` → spec+plan drafted; waiting for approval
-- `APPROVED` → spec+plan approved (hashes recorded); coding allowed
-- `IN_PROGRESS` → at least one linked PR open
-- `IN_QA` → PRs merged (or ready for verification) and checks running
-- `VERIFIED` → required test checks pass on the release commit set
-- `REVIEWED` → required PR approvals/review gate satisfied
-- `SECURITY_PASS` → security gate satisfied (scan evidence)
-- `RELEASABLE` → all gates satisfied for all repos
-- `DONE` → released/closed (final evidence bundle sealed)
-
-### 3) Minimal Jira Fields (Service-Owned Truth)
-
-Use Jira labels for visibility, but use fields for authority.
-
-- `AI Spec Page URL` (Confluence link)
-- `AI Spec Hash` (SHA-256)
-- `AI Spec Version` (Confluence version number at approval)
-- `AI Plan Ref` (attachment id/url or object storage key)
-- `AI Plan Hash` (SHA-256 of canonical JSON)
-- `AI Policy Version` (string, e.g. `policy-2026-01-16`)
-- `AI Impacted Repos` (list)
-- `AI PR Links` (list)
-- `AI Evidence Bundle URL` (immutable storage link)
-- `AI Gate Summary` (computed human-readable status)
-- `AI Approved By` / `AI Approved At` (optional but recommended)
-
-### 4) Confluence Spec Template (Minimum Machine-Readable Data)
-
-Keep Confluence readable for humans, but ensure approvals are machine-verifiable.
-
-Required Page Properties fields:
-- `Spec Status: DRAFT | APPROVED | CHANGES REQUESTED`
-- `Jira Key: <PROJECT-123>`
-- `Policy Version: <string>`
-
-Recommended additional fields:
-- `Impacted Repos: <comma-separated>`
-- `Data Classification: PUBLIC | INTERNAL | CONFIDENTIAL | RESTRICTED`
-
-### 5) Plan JSON Contract (Schema)
-
-Store as a Jira attachment (or in object storage) and validate on ingest.
-
-Minimum recommended shape:
-```json
-{
-  "ticketKey": "DEMO-123",
-  "repos": [{ "workspace": "acme", "repo": "payments-api" }],
-  "filesToTouch": ["src/routes/health.ts"],
-  "acceptanceCriteria": ["..."],
-  "steps": ["..."],
-  "requiredChecks": ["lint","tests","security-sast","security-sca","secrets-scan","policy-validate"]
-}
-```
-
-Hashing rule: compute `PlanHash = sha256(canonicalJson(plan))` where `canonicalJson` uses stable key ordering and no insignificant whitespace.
-
-### 6) Evidence Bundle (Immutable Artifact)
-
-Generate one bundle per ticket (and optionally a final “release bundle”).
-
-Suggested `evidence.json` contents:
-- `ticketKey`, `policyVersion`
-- `spec`: `pageUrl`, `pageId`, `version`, `specHash`, `snapshotObjectKey`
-- `plan`: `planHash`, `planObjectKey` (or Jira attachment reference)
-- `repos[]`: per repo: PR URLs, commit SHAs, merge timestamps
-- `checks[]`: status name → PASS/FAIL, timestamp, link to logs/artifacts
-- `review`: approvers + timestamps (source: Bitbucket PR approvals)
-- `security`: scan summaries + links
-
-Store in immutable object storage (S3/GCS/Azure Blob). Optionally sign the bundle hash with KMS and store `evidenceBundleHash` in Jira.
-
-### 7) Bitbucket Cloud “Required Checks” (Commit Status Keys)
-
-Branch restrictions should require specific build/commit status keys. Your CI must publish these keys against the commit SHA(s) being merged.
-
-Recommended v1 keys:
-- `lint`
-- `tests`
-- `security-sast`
-- `security-sca`
-- `secrets-scan`
-- `policy-validate`
-
-If you use Bitbucket Pipelines, you can publish statuses via the Build Status API:
-- Endpoint: `POST /2.0/repositories/{workspace}/{repo_slug}/commit/{sha}/statuses/build`
-- Body includes `key` (one of the keys above), `state` (`SUCCESSFUL`/`FAILED`), and a `url` to logs/artifacts.
-
-### 8) Webhooks to Ingest (Event-Driven + Reconciler)
-
-Use webhooks for responsiveness, plus a periodic reconciler for correctness.
-
-- **Bitbucket:** PR created/updated/merged; build status created/updated; (optional) pipeline events.
-- **Confluence:** page updated (spec status transitions); page created.
-- **Jira:** issue updated/transitions (mostly for visibility and backfill triggers).
-
-Reconciler runs every N minutes to:
-- discover PRs for active tickets, even if webhook missed
-- re-read required check states for linked commits
-- detect spec/plan drift (hash mismatch) and automatically revert state to `PLAN_REVIEW`
-
-### 9) Service API Surface (Minimal)
-
-Implement as a small HTTP service + worker:
-- `POST /webhooks/bitbucket`
-- `POST /webhooks/confluence`
-- `POST /webhooks/jira`
-- `POST /admin/reconcile?ticketKey=...` (manual backfill)
-- `GET /healthz`
-
-Security requirements:
-- Verify webhook signatures/secrets.
-- Store tokens in a secret manager; use least-privilege OAuth scopes.
-- Log every state transition with an idempotency key and the “evidence references” used.
-
-### 10) Persistence (Minimal Tables)
-
-Even for v1, use a DB so you can reconcile and prove decisions.
-
-- `tickets` (key, canonicalState, specHash, planHash, policyVersion, evidenceUrl, updatedAt)
-- `spec_snapshots` (pageId, version, specHash, objectKey, createdAt)
-- `plans` (planHash, ticketKey, objectKey/attachmentRef, schemaVersion)
-- `repos` (workspace, repoSlug)
-- `pull_requests` (ticketKey, workspace, repoSlug, prId, prUrl, sourceBranch, mergeCommitSha, status)
-- `checks` (ticketKey, workspace, repoSlug, sha, key, state, url, updatedAt)
-- `events` (source, eventId, receivedAt, processedAt, status, error) for dedupe + auditability
-
-### 11) Mapping Service State → Jira Visibility
-
-The control plane should update Jira with:
-- Jira Status transitions (board columns)
-- Derived labels (`ai-state:*`) for quick scanning
-- A single “Gate Summary” comment updated in-place (avoid comment spam)
-
-Important: ensure Jira status changes are idempotent and safe to retry.
-
-### 12) Hashing Details (SpecHash)
-
-To make Confluence approval tamper-evident, record exactly what was approved.
-
-Recommended v1 algorithm:
-- Fetch Confluence page body in `storage` format (and the page `version.number`).
-- Compute:
-  - `specPayload = { pageId, versionNumber, storageValue }`
-  - `SpecHash = sha256(utf8(canonicalJson(specPayload)))`
-
-This binds approval to a specific page version (a later edit produces a different version + hash).
-
-### 13) Configuration (Environment Variables)
-
-Keep config explicit and repo-agnostic so the control plane can operate across many repos.
-
-Suggested env vars for v1:
-- `PUBLIC_BASE_URL` (used in evidence links and callbacks)
-- `DB_URL` (Postgres)
-- `EVIDENCE_BUCKET_URL` (object storage bucket/prefix)
-- `WEBHOOK_SECRET_BITBUCKET`
-- `WEBHOOK_SECRET_CONFLUENCE` (or shared secret if you proxy events)
-- `WEBHOOK_SECRET_JIRA`
-- `JIRA_BASE_URL`, `JIRA_API_TOKEN`, `JIRA_USER_EMAIL` (v1; move to OAuth2 later)
-- `CONFLUENCE_BASE_URL`, `CONFLUENCE_API_TOKEN`, `CONFLUENCE_USER_EMAIL` (v1; move to OAuth2 later)
-- `BITBUCKET_OAUTH_CLIENT_ID`, `BITBUCKET_OAUTH_CLIENT_SECRET`
-- `BITBUCKET_WORKSPACE_ALLOWLIST` (comma-separated)
-- `REQUIRED_CHECK_KEYS` (override default required status contract if needed)
-
-### 14) Default Gate Rules (Reasonable Enterprise Defaults)
-
-These should be configurable, but the v1 defaults should be strict:
-- **Approval-to-implement:** require `Spec Status = APPROVED` + recorded `SpecHash` + recorded `PlanHash`.
-- **Merge gate:** Bitbucket branch restrictions require (a) N PR approvals, (b) required check keys all `SUCCESSFUL`.
-- **Review gate:** derive “reviewed” from PR approval metadata (not agent output).
-- **Security gate:** require scan evidence (status key + artifact links) rather than a human-only assertion.
-- **Drift rule:** if Confluence spec version changes after approval, automatically revert canonical state to `PLAN_REVIEW` until re-approved.
-
-### 15) Hosting Notes (Choose Later, Don’t Block v1)
-
-The only hard hosting requirements are:
-- Public HTTPS endpoint for webhooks
-- Background worker execution (or a queue) for reconciliation + evidence generation
-- Secure secret storage
-
-Common v1 choices:
-- Serverless container (Cloud Run / ECS Fargate / Azure Container Apps)
-- Lambda-style functions + a queue + scheduled reconciler

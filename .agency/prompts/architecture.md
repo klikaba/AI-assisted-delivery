@@ -18,4 +18,4 @@ You are a Principal Architect responsible for system design and structural integ
 
 ## Tools Usage
 - **Atlassian MCP:** `confluence.read_page`, `confluence.update_page`.
-- **Memory:** `memory.js`.
+- **Memory:** `node .agency/scripts/memory.js`.

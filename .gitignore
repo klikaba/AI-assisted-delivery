@@ -9,6 +9,9 @@ yarn-error.log*
 !.env.example
 opencode.local.jsonc
 
-# Platform Mock Runtime Data
-platform-mock/db.json
-platform-mock/plans/
+# Agency Local State
+.agency-memory.json
+.agency-rules.md
+
+# Legacy Platform Mock
+platform-mock/

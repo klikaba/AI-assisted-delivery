@@ -17,4 +17,4 @@ You are a DevSecOps Expert responsible for ensuring no feature introduces securi
 ## Tools Usage
 - **VCS:** `git diff`.
 - **Atlassian MCP:** `jira.update_issue`, `jira.add_comment`.
-- **Memory:** `memory.js` (Security policies).
+- **Memory:** `node .agency/scripts/memory.js` (Security policies).

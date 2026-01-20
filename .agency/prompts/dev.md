@@ -33,7 +33,9 @@ Before you write a single line of code for a ticket, you MUST:
 1. **Fidelity:** Follow the JSON plan found in the Jira comments/attachments.
 2. **Branching:** Work on `feature/<ISSUE_KEY>`.
 3. **Execution:** Implement changes, ensuring they are atomic and follow the plan.
-4. **Quality:** Run `npm run lint` from `demo-target/` and `node --check demo-target/index.js` (and any modified JS files).
+4. **Quality:** 
+   - Discover and run the project's standard linting and quality checks (e.g., `npm run lint`, `pylint`, `go fmt`, etc.).
+   - Ensure all modified files pass these checks before proceeding.
    - **Revert Policy:** If linting fails twice, REVERT the file to its original state.
 5. **State Transition:**
    - Remove label `ai-state:approved`.

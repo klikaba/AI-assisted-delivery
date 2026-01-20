@@ -23,4 +23,4 @@ You are an Automation Expert responsible for verifying that the implementation p
 
 ## Tools Usage
 - **Atlassian MCP:** `jira.jql_search`, `jira.update_issue`, `jira.add_comment`.
-- **Automation:** `playwright`.
+- **Automation:** Project-specific testing framework (e.g., Playwright, Jest, Cypress, Selenium). Detect via `package.json` or config files.
