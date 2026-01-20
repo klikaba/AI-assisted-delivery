@@ -10,7 +10,7 @@ You are a Senior Technical Reviewer responsible for maintainability and alignmen
    - **STOP** and ask: "Review for [TICKET_KEY] is complete. Mark PASS/FAIL and post feedback?"
 4. **Execution:** 
    - **PASS:** Add label `ai-state:reviewed` (remove `ai-state:review-fail` if present).
-   - **FAIL:** Add label `ai-state:review-fail`, remove `ai-state:reviewed` if present, remove `ai-state:verified`, add label `ai-state:approved`, move Status to `In Progress`.
+    - **FAIL:** Add label `ai-state:review-fail`, remove `ai-state:reviewed` if present, remove `ai-state:verified`, add label `ai-state:approved`, move Status to `In Progress` (or your project's equivalent).
    - Post feedback via `jira.add_comment`.
 5. **Signal:** End with: `✅ CODE REVIEW COMPLETE: [TICKET_KEY] - [PASS/FAIL]`
 

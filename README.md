@@ -1,145 +1,101 @@
-# Enterprise Agentic Delivery Platform
+# Enterprise Agentic Delivery Platform (.agency)
 
-> **"Bridging the Gap between Business Strategy and Technical Execution with AI-Driven Governance."**
+Current version: see `VERSION`.
 
-## 🔭 The Mission
-Our mission is to empower enterprise engineering organizations to adopt AI **without compromising safety, quality, or architectural integrity.** We transform the "Black Box" of AI coding into a transparent, governed, and highly-visible **Agentic SDLC**.
+This repository provides a portable, role-based Agentic SDLC configuration designed to be installed into any host repository as a git submodule mounted at `.agency/`.
 
-## 🚀 The Vision: A Virtual Engineering Team
-We envision a future where specialized AI Agents handle the heavy lifting of the software lifecycle—from requirement refinement to E2E testing—while **Humans remain the ultimate Decision Makers.** This platform is not just a coding assistant; it is a **Virtual Engineering Squad** that lives in your Jira board and speaks the language of your corporate standards.
+Release notes: `RELEASE_NOTES.md`
+Changelog: `CHANGELOG.md`
 
----
+## What This Is
 
-## ✅ What This Project Does (Capabilities)
+- A set of governed SDLC agent prompts (Product, Planning, Architecture, Dev, QA, Review, Security, DevOps, PM).
+- A portable workflow contract built on Jira labels (`ai-state:*`) plus optional Jira status transitions.
+- A lightweight context engine that merges shared rules + repo rules + local runtime memory.
 
-This repo is a **portable Agentic SDLC Engine** designed to be dropped into any git repository. It orchestrates a governed workflow using Jira + Confluence as the source of truth.
+## Install
 
-- **Role-based SDLC agents:** Product Owner, Planning, Architecture, Developer, QA, Code Review, Security, DevOps, Project Manager.
-- **Jira-driven state machine:** Agents discover work via `ai-state:*` labels and move tickets through the workflow.
-- **Confluence spec generation:** Planning creates a spec page with a Page Properties table and `Spec Status: DRAFT`.
-- **Dual-key governance gate:** Developer must verify Jira label `ai-state:approved` *and* Confluence `Spec Status: APPROVED` before coding.
-- **Agency memory:** Inject corporate standards and project-specific rules into every AI interaction.
-- **Atlassian MCP integration:** Uses `mcp-remote` to connect the TUI to Jira/Confluence securely via browser authentication.
+From your host repository root:
 
----
+```bash
+git submodule add <THIS_REPO_URL> .agency
+git submodule update --init --recursive
+```
 
-## 📂 Project Structure (Drop-in Architecture)
+Initial setup (writes host repo files, not the submodule):
 
-This tool is designed as a **portable agentic engine**. All configuration lives in the `.agency/` directory, keeping your project root clean.
+```bash
+./.agency/setup.sh
+```
 
-- `.agency/opencode.jsonc`: The main configuration file.
-- `.agency/prompts/`: The "Brain" (Shared System Prompts).
-- `.agency/rules.md`: **Global Rules** (Shared Corporate Policy).
-- `.agency-rules.md`: **Local Rules** (Project-Specific Overrides - create this in root).
-- `.agency-memory.json`: **Persistent Memory** (Local Runtime State - auto-generated in root).
+Run OpenCode:
 
-## 🚀 Quick Start (Any Repo)
+```bash
+opencode --config .agency/opencode.jsonc
+```
 
-1. **Install:** Copy the `.agency/` folder (or `git submodule add` it) into your repo root.
-2. **Setup:** Run the interactive wizard to configure your project context:
-   ```bash
-   ./.agency/setup.sh
-   ```
-3. **Run:** Launch the agent interface:
-   ```bash
-   opencode --config .agency/opencode.jsonc
-   ```
-4. **Interact:** Select an agent (e.g., **Product Owner**) and start refining tickets from your Jira board.
+If you are developing this repository directly (not as a submodule), you can run:
 
----
+```bash
+opencode --config opencode.jsonc
+```
 
-## 🧱 Agency Memory (Context Engine)
+Update the submodule later:
 
-The platform includes a lightweight "Context Engine" that injects your corporate standards into every prompt.
+```bash
+git submodule update --remote .agency
+```
 
-- **Global Rules:** `.agency/rules.md` (From the shared submodule).
-- **Local Rules:** `.agency-rules.md` (From your project root).
-- **Runtime Memory:** `.agency-memory.json` (Persisted facts like "Use port 8080").
-- **Mechanism:** `scripts/memory.js` merges all three sources at runtime.
+## Layout (As Installed In The Host Repo)
 
----
+- `.agency/opencode.jsonc`: OpenCode config.
+- `.agency/prompts/`: agent prompts.
+- `.agency/rules.md`: shared/global rules.
+- `.agency/scripts/memory.js`: context engine.
+- `.agency/setup.sh`: setup wizard.
 
-## 🕹️ User Interaction Model
+## Host Repo Files
 
-This platform is a multi-surface experience. You don't just "chat" with it; you **Orchestrate** it across your existing tools.
+These files live in your host repository root:
 
-### 1. The Cockpit: OpenCode TUI
-The **OpenCode TUI** is where you trigger and interact with the agents. 
-- You select the **Agent** (e.g., "Planning Agent").
-- You **Approve** its intermediate thoughts (e.g., "Proceed with this plan?").
-- You see the **Live Logs** of its work.
+- `.agency-rules.md`: repository rules (commit this file).
+- `.agency-memory.json`: local runtime memory/state (gitignored).
 
-### 2. The Control Tower: Jira
-**Jira** is your visual representation of the project's health.
-- You watch the **Board** columns move automatically as agents work.
-- You read **AI-generated comments** for status updates.
-- You use **Labels** (`ai-state:...`) to understand the exact sub-state of any ticket.
+The setup script also ensures the host `.gitignore` ignores `.agency-memory.json` and `.opencode/`.
 
-### 3. The Library & Gate: Confluence
-**Confluence** is where the "Legal" and "Technical" source of truth lives.
-- You read the **Technical Specs** generated by the Architecture agent.
-- You perform the **Critical Approval** by editing the "Spec Status" property.
-- This is the **Human Gate** that physically unlocks the Developer agent.
+## Context Engine
 
----
+Tooling-friendly output (pure JSON by default):
 
-## 🏆 Key Innovations
+```bash
+node .agency/scripts/memory.js
+```
 
-### 1. Jira-Driven State Machine (Single Source of Truth)
-The platform uses your existing Atlassian ecosystem as its **Global State Engine**. Using namespaced labels (`ai-state:<STATUS>`) and strict status transitions, the platform provides 100% visibility to stakeholders.
+Pretty JSON output:
 
-### 2. Dual-Key Governance (The Safety Lock)
-The **Developer Agent** is physically prevented from writing code unless **TWO** distinct conditions are met:
-1.  **Jira:** Ticket has the label `ai-state:approved`.
-2.  **Confluence:** The linked Spec Page has the status `APPROVED`.
-This ensures that every line of code traces back to an explicitly signed-off requirement.
+```bash
+node .agency/scripts/memory.js --pretty
+```
 
----
+## Jira Workflow Contract
 
-## ⚠️ Critical Prerequisites: Jira Board Setup
+Portable state machine (labels):
 
-To support the Enterprise Workflow, your Jira Project Board **MUST** have the following columns/statuses mapped:
+- `ai-state:ready-for-plan`
+- `ai-state:plan-review`
+- `ai-state:approved`
+- `ai-state:in-qa`
+- `ai-state:verified`
+- `ai-state:reviewed` / `ai-state:review-fail`
+- `ai-state:security-pass` / `ai-state:security-fail`
 
-1.  **To Do** (Backlog)
-2.  **Selected for Development** (PO Handoff)
-3.  **In Planning** (Analyst Working)
-4.  **Waiting for Approval** (Governance Gate)
-5.  **In Progress** (Coding)
-6.  **In QA** (Testing)
-7.  **Done** (Released)
+Jira status transitions are treated as best-effort. Jira status names differ across projects; the prompts prioritize labels as the portable mechanism.
 
----
+## Confluence Workflow Contract
 
-## 🏷️ Label Glossary (Queues and Gates)
+- Planning generates a spec page that includes a Page Properties table with `Spec Status: DRAFT`.
+- Human reviewers update that property to `APPROVED` to open the governance gate.
 
-These are the labels the prompts use to discover work and enforce gates:
+## Environment
 
-- `ai-state:ready-for-plan`: refined and ready for planning
-- `ai-state:plan-review`: spec/plan drafted and waiting for human approval
-- `ai-state:approved`: dual-key gate satisfied, ready for implementation
-- `ai-state:in-qa`: implementation complete, ready for QA run
-- `ai-state:verified`: QA passed (status may remain `In QA`)
-- `ai-state:reviewed` / `ai-state:review-fail`: code review result (fail bounces back to `ai-state:approved`)
-- `ai-state:security-pass` / `ai-state:security-fail`: security audit result (fail bounces back to `ai-state:approved`)
-
-## 🔗 How Agents Coordinate (Handoffs)
-
-Agents coordinate through Jira as the shared workspace:
-
-- **Planning → Everyone:** Planning creates the Confluence spec and adds a Jira comment like `Confluence Spec: <url>` so PM/Dev/QA can reliably find the spec later.
-- **PM → Dev:** PM Governance Sync reads the spec status and moves the ticket into `ai-state:approved` when the Confluence spec is approved.
-- **QA → Review/Security → Release:** QA marks `ai-state:verified`; Review and Security add gate labels; PM Release requires all gate labels before closing the ticket.
-
-## 👥 The Agent Suite
-
-| Agent | Model | Role |
-| :--- | :--- | :--- |
-| **Product Owner** | `opencode/glm-4.7-free` | Refines backlog & UX. |
-| **Planning** | `openai/gpt-5.2` | Drafts Specs & Architecture. |
-| **Architecture** | `openai/gpt-5.2` | Designs Diagrams & Trade-offs. |
-| **Developer** | `openai/gpt-5.2-codex` | Implements Approved Plans. |
-| **Code Reviewer** | `openai/gpt-5.2-codex` | Enforces Standards. |
-| **Security** | `openai/gpt-5.2-codex` | Audits Vulnerabilities. |
-| **DevOps** | `opencode/minimax-m2.1-free` | Verifies Environment. |
-| **QA Engineer** | `opencode/minimax-m2.1-free` | Runs E2E Tests. |
-| **Project Manager** | `opencode/minimax-m2.1-free` | Syncs Governance & Releases. |
+This repo includes `.env.example` as a safe starting point. In your host repo you typically create a `.env` (gitignored) with any required environment variables (e.g. Confluence space key).

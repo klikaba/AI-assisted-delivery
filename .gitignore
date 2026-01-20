@@ -9,9 +9,11 @@ yarn-error.log*
 !.env.example
 opencode.local.jsonc
 
+# OpenCode Local State
+.opencode/
+
 # Agency Local State
 .agency-memory.json
-.agency-rules.md
 
 # Legacy Platform Mock
 platform-mock/
