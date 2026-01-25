@@ -28,7 +28,7 @@
     "plan": { "disable": true },
 
     "Product Owner Agent": {
-      "model": "opencode/glm-4.7-free",
+      "model": "opencode/big-pickle",
       "description": "Refines backlog items and ensures business clarity.",
       "prompt": "{file:./prompts/product.md}"
     },
@@ -59,17 +59,17 @@
       "prompt": "{file:./prompts/security.md}"
     },
     "DevOps Engineer Agent": {
-      "model": "opencode/minimax-m2.1-free",
+      "model": "opencode/big-pickle",
       "description": "Manages environment and pipelines.",
       "prompt": "{file:./prompts/devops.md}"
     },
     "QA Engineer Agent": {
-      "model": "opencode/minimax-m2.1-free",
+      "model": "opencode/big-pickle",
       "description": "Generates and runs E2E tests.",
       "prompt": "{file:./prompts/qa.md}"
     },
     "Project Manager Agent": {
-      "model": "opencode/minimax-m2.1-free",
+      "model": "opencode/big-pickle",
       "description": "Tracks status, syncs Jira/Confluence, and manages releases.",
       "prompt": "{file:./prompts/pm.md}"
     }
