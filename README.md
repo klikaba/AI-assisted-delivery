@@ -100,6 +100,8 @@ These files live in your host repository root:
 
 The setup script ensures the host `.gitignore` ignores `.agency-memory.json`, `opencode.jsonc`, and `.opencode/`.
 
+Note: This `.agency` repository tracks its own `opencode.jsonc` as a reference/example. In a host repository, treat `opencode.jsonc` as generated output and keep it untracked.
+
 Recommended host repo policy:
 
 - Commit `.agency-project.json` (shared project config)
