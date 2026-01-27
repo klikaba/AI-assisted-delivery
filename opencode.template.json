@@ -1,0 +1,16 @@
+{
+  "_comment": "Template reference for opencode.jsonc generation. The actual generation is done by scripts/config.js",
+  "_usage": "Run 'node scripts/config.js --generate' to generate opencode.jsonc from your project configuration",
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "_description": "Controlled by config.opencode.permission",
+    "edit": "ask",
+    "bash": "ask"
+  },
+  "mcp": {
+    "_description": "Generated based on config.tracker.mode (atlassian/github/standalone)"
+  },
+  "agent": {
+    "_description": "Generated based on config.agents and config.models"
+  }
+}

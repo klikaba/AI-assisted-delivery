@@ -15,6 +15,24 @@ const SEED_MEMORY = [
   }
 ];
 
+/**
+ * Load resolved configuration from config.js
+ */
+function loadResolvedConfig(warnings) {
+  try {
+    const { loadConfig } = require('./config.js');
+    const { config } = loadConfig();
+    return config;
+  } catch (err) {
+    // Config system not available or error loading
+    warnings.push({
+      kind: 'config-load-failed',
+      message: `Failed to load configuration: ${err.message}`
+    });
+    return null;
+  }
+}
+
 function parseArgs(argv) {
   return {
     pretty: argv.includes('--pretty')
@@ -33,14 +51,18 @@ function gitRevParse(args, cwd) {
 }
 
 function detectProjectRoot() {
+  // Anchor git detection to the .agency checkout location so callers can run
+  // this script from any working directory.
+  const agencyRoot = path.join(__dirname, '..');
+
   // When running inside a submodule, this returns the *host* repo root.
-  const superRoot = gitRevParse(['--show-superproject-working-tree'], process.cwd());
+  const superRoot = gitRevParse(['--show-superproject-working-tree'], agencyRoot);
   if (superRoot) return superRoot;
 
-  const topRoot = gitRevParse(['--show-toplevel'], process.cwd());
+  const topRoot = gitRevParse(['--show-toplevel'], agencyRoot);
   if (topRoot) return topRoot;
 
-  return process.cwd();
+  return path.resolve(agencyRoot);
 }
 
 function safeReadText(filePath) {
@@ -65,15 +87,17 @@ function safeReadJsonArray(filePath, warnings) {
     if (Array.isArray(parsed)) return parsed;
     warnings.push({
       kind: 'invalid-memory-shape',
-      message: `${path.basename(filePath)} must be a JSON array; treating as empty array.`
+      message: `${path.basename(filePath)} must be a JSON array; preserving seed memory in output.`
     });
-    return [];
+    // Preserve seed facts on invalid user-edited files.
+    return null;
   } catch {
     warnings.push({
       kind: 'invalid-memory-json',
-      message: `${path.basename(filePath)} is not valid JSON; treating as empty array.`
+      message: `${path.basename(filePath)} is not valid JSON; preserving seed memory in output.`
     });
-    return [];
+    // Preserve seed facts on invalid user-edited files.
+    return null;
   }
 }
 
@@ -123,9 +147,13 @@ function main() {
   const globalRulesMarkdown = safeReadText(GLOBAL_RULES_FILE);
   const localRulesMarkdown = safeReadText(localRulesFile);
 
+  // Load resolved configuration
+  const config = loadResolvedConfig(warnings);
+
   const payload = {
     projectRoot,
     memory,
+    config,
     rules: {
       globalMarkdown: globalRulesMarkdown,
       localMarkdown: localRulesMarkdown

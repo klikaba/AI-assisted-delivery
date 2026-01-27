@@ -1,0 +1,50 @@
+{
+  "version": "1.0",
+  "models": {
+    "default": "openai/gpt-4o",
+    "agents": {
+      "product_owner": null,
+      "planning": null,
+      "architecture": null,
+      "developer": null,
+      "reviewer": null,
+      "security": null,
+      "devops": null,
+      "qa": null,
+      "pm": null
+    }
+  },
+  "tracker": {
+    "mode": "atlassian",
+    "atlassian": {
+      "mcp_url": "https://mcp.atlassian.com/v1/sse"
+    }
+  },
+  "agents": {
+    "product_owner": { "enabled": true },
+    "planning": { "enabled": true },
+    "architecture": { "enabled": true },
+    "developer": { "enabled": true },
+    "reviewer": { "enabled": true, "tools": { "edit": false, "bash": false } },
+    "security": { "enabled": true },
+    "devops": { "enabled": true },
+    "qa": { "enabled": true },
+    "pm": { "enabled": true }
+  },
+  "tooling": {
+    "test_command": null,
+    "lint_command": null,
+    "build_command": null,
+    "branch_pattern": "feature/{ticket}",
+    "commit_pattern": "{ticket}: {message}"
+  },
+  "workflow": {
+    "skip_states": []
+  },
+  "opencode": {
+    "permission": {
+      "edit": "ask",
+      "bash": "ask"
+    }
+  }
+}

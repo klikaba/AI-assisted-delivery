@@ -33,22 +33,23 @@ Initial setup (writes host repo files, not the submodule):
 ./.agency/setup.sh
 ```
 
-After setup, commit the generated repository rules file:
+After setup, commit the generated configuration files:
 
 ```bash
-git add .agency-rules.md .gitignore
-git commit -m "chore: configure .agency rules"
+git add .agency-rules.md .agency-project.json .gitignore
+git commit -m "chore: configure .agency"
 ```
 
 Run OpenCode:
 
 ```bash
-opencode --config .agency/opencode.jsonc
+opencode --config opencode.jsonc
 ```
 
 If you are developing this repository directly (not as a submodule), you can run:
 
 ```bash
+node scripts/config.js --generate
 opencode --config opencode.jsonc
 ```
 
@@ -71,14 +72,19 @@ git commit -m "chore: bump .agency submodule"
 - `opencode` available on PATH
 - `node` (required for `.agency/scripts/memory.js`)
 - `npx` (used by `opencode.jsonc` to run `mcp-remote` for Atlassian MCP)
+- `gh` (GitHub CLI, required for GitHub tracker mode only)
 
 If `setup.sh` reports missing tools, you can still run setup and install the missing dependencies afterwards.
 
 ## Layout (As Installed In The Host Repo)
 
-- `.agency/opencode.jsonc`: OpenCode config.
-- `.agency/prompts/`: agent prompts.
+- `.agency/defaults.json`: platform default configuration.
+- `.agency/opencode.template.json`: reference for generated opencode.jsonc structure.
+- `.agency/prompts/`: agent prompts (Atlassian mode).
+- `.agency/prompts/github/`: agent prompts (GitHub mode).
+- `.agency/prompts/standalone/`: agent prompts (standalone mode).
 - `.agency/rules.md`: shared/global rules.
+- `.agency/scripts/config.js`: configuration engine.
 - `.agency/scripts/memory.js`: context engine.
 - `.agency/setup.sh`: setup wizard.
 
@@ -86,17 +92,80 @@ If `setup.sh` reports missing tools, you can still run setup and install the mis
 
 These files live in your host repository root:
 
+- `.agency-project.json`: project configuration (commit this file).
+- `.agency-org.json`: organization configuration (optional, commit if shared).
 - `.agency-rules.md`: repository rules (commit this file).
 - `.agency-memory.json`: local runtime memory/state (gitignored).
+- `opencode.jsonc`: generated OpenCode config (gitignored).
 
-The setup script also ensures the host `.gitignore` ignores `.agency-memory.json` and `.opencode/`.
+The setup script ensures the host `.gitignore` ignores `.agency-memory.json`, `opencode.jsonc`, and `.opencode/`.
 
 Recommended host repo policy:
 
+- Commit `.agency-project.json` (shared project config)
 - Commit `.agency-rules.md` (shared team rules)
 - Do not commit `.agency-memory.json` (local runtime state)
+- Do not commit `opencode.jsonc` (generated from config)
+
+## Configuration
+
+The platform uses a layered configuration system that merges settings from multiple sources:
+
+1. **Platform defaults** (`.agency/defaults.json`) - base configuration
+2. **Organization config** (`.agency-org.json`) - optional org-wide overrides
+3. **Project config** (`.agency-project.json`) - project-specific settings
+4. **Environment variables** - runtime overrides
+
+### Project Configuration (`.agency-project.json`)
+
+```json
+{
+  "version": "1.0",
+  "tracker": {
+    "mode": "atlassian"
+  },
+  "models": {
+    "default": "openai/gpt-4o"
+  },
+  "tooling": {
+    "test_command": "npm test",
+    "lint_command": "npm run lint"
+  },
+  "agents": {
+    "devops": { "enabled": false }
+  }
+}
+```
+
+### Tracker Modes
+
+- `atlassian` - Jira + Confluence integration (default, full MCP support)
+- `github` - GitHub Issues + PRs workflow (full prompts, no MCP configured)
+- `standalone` - No external tracker, interactive local workflow
+
+### Configuration CLI
+
+```bash
+# View resolved configuration
+node .agency/scripts/config.js --pretty
+
+# Validate configuration
+node .agency/scripts/config.js --validate
+
+# Regenerate opencode.jsonc
+node .agency/scripts/config.js --generate
+```
+
+### Environment Variable Overrides
+
+- `AGENCY_MODEL_DEFAULT` - Override default model
+- `AGENCY_TRACKER_MODE` - Override tracker mode
+- `AGENCY_TEST_COMMAND` - Override test command
+- `AGENCY_LINT_COMMAND` - Override lint command
 
 ## Context Engine
+
+The context engine merges rules, memory, and configuration into a single JSON payload for agents.
 
 Tooling-friendly output (pure JSON by default):
 
@@ -109,6 +178,14 @@ Pretty JSON output:
 ```bash
 node .agency/scripts/memory.js --pretty
 ```
+
+Output includes:
+
+- `projectRoot` - host repository path
+- `memory` - runtime facts and learnings
+- `config` - resolved configuration (merged from all layers)
+- `rules` - global and local rules markdown
+- `warnings` - any issues encountered
 
 ## Jira Workflow Contract
 
@@ -126,10 +203,12 @@ Jira status transitions are treated as best-effort. Jira status names differ acr
 
 ## Basic Usage
 
-1. Start OpenCode: `opencode --config .agency/opencode.jsonc`
-2. Choose an agent (e.g. Product Owner, Planning, Developer).
-3. Use Jira labels (`ai-state:*`) to move issues through the workflow.
-4. Use Confluence `Spec Status` as the human approval gate.
+1. Run setup: `./.agency/setup.sh`
+2. Commit config: `git add .agency-project.json .agency-rules.md && git commit`
+3. Start OpenCode: `opencode --config opencode.jsonc`
+4. Choose an agent (e.g. Product Owner, Planning, Developer).
+5. Use Jira labels (`ai-state:*`) to move issues through the workflow.
+6. Use Confluence `Spec Status` as the human approval gate.
 
 ## Migration From <= 0.3.x
 

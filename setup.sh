@@ -4,6 +4,7 @@ set -euo pipefail
 
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
+RED='\033[0;31m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -40,25 +41,27 @@ printf "This wizard configures the AI workforce for the host repository:\n"
 printf "  %s\n\n" "$HOST_ROOT"
 
 # 1. Check Dependencies
-printf "%b\n" "${GREEN}[1/4] Checking Environment...${NC}"
+printf "%b\n" "${GREEN}[1/5] Checking Environment...${NC}"
+OPENCODE_FOUND=false
 if command -v opencode >/dev/null 2>&1; then
-  printf "- opencode: found\n"
+  printf "  - opencode: found\n"
+  OPENCODE_FOUND=true
 else
-  printf "- opencode: NOT found (you can install later: npm install -g opencode)\n"
+  printf "  - opencode: NOT found (install with: npm install -g opencode)\n"
 fi
 
 if command -v node >/dev/null 2>&1; then
-  printf "- node: found\n"
+  printf "  - node: found\n"
 else
-  printf "- node: NOT found (recommended for scripts/memory.js)\n"
+  printf "  - node: NOT found (recommended for scripts/memory.js)\n"
 fi
 
 # 2. Configure Repo Rules (committed)
 printf "\n"
-printf "%b\n" "${GREEN}[2/4] Configuring Repository Rules...${NC}"
+printf "%b\n" "${GREEN}[2/5] Configuring Repository Rules...${NC}"
 
 if [ -f "$RULES_FILE" ]; then
-  printf "- Found existing %s\n" "$RULES_FILE"
+  printf -- "- Found existing %s\n" "$RULES_FILE"
   read -r -p "  Overwrite with a fresh template? (y/N) " overwrite
   if [ "${overwrite}" = "y" ]; then
     # Create a backup before overwriting.
@@ -84,29 +87,120 @@ if [ ! -f "$RULES_FILE" ] || [ ! -s "$RULES_FILE" ]; then
 
   read -r -p "  > Primary language (e.g. Python, TS, Go): " lang
   if [ -n "${lang}" ]; then
-    printf "- Primary Language: %s\n" "$lang" >> "$RULES_FILE"
-    printf "- Follow idiomatic coding standards for %s.\n" "$lang" >> "$RULES_FILE"
+    printf -- "- Primary Language: %s\n" "$lang" >> "$RULES_FILE"
+    printf -- "- Follow idiomatic coding standards for %s.\n" "$lang" >> "$RULES_FILE"
   fi
 
   read -r -p "  > Testing framework (e.g. Jest, Pytest): " test_fw
   if [ -n "${test_fw}" ]; then
-    printf "- Testing Framework: %s\n" "$test_fw" >> "$RULES_FILE"
-    printf "- All new features must include %s tests.\n" "$test_fw" >> "$RULES_FILE"
+    printf -- "- Testing Framework: %s\n" "$test_fw" >> "$RULES_FILE"
+    printf -- "- All new features must include %s tests.\n" "$test_fw" >> "$RULES_FILE"
   fi
 
   read -r -p "  > Code style preference (e.g. Tabs, Semicolons): " style
   if [ -n "${style}" ]; then
-    printf "- Code Style: %s\n" "$style" >> "$RULES_FILE"
+    printf -- "- Code Style: %s\n" "$style" >> "$RULES_FILE"
   fi
 
-  printf "- Wrote %s\n" "$RULES_FILE"
+  printf -- "- Wrote %s\n" "$RULES_FILE"
 else
-  printf "- Keeping existing %s\n" "$RULES_FILE"
+  printf -- "- Keeping existing %s\n" "$RULES_FILE"
+fi
+
+# 2.5 Project Configuration
+printf "\n"
+printf "%b\n" "${GREEN}[3/5] Project Configuration...${NC}"
+
+PROJECT_CONFIG="$HOST_ROOT/.agency-project.json"
+CREATE_CONFIG=false
+
+if [ -f "$PROJECT_CONFIG" ]; then
+  printf -- "- Found existing %s\n" "$PROJECT_CONFIG"
+  read -r -p "  Reconfigure? (y/N) " reconfigure
+  if [ "${reconfigure}" = "y" ]; then
+    cp "$PROJECT_CONFIG" "$PROJECT_CONFIG.bak"
+    CREATE_CONFIG=true
+  fi
+else
+  CREATE_CONFIG=true
+fi
+
+if [ "$CREATE_CONFIG" = true ]; then
+  printf "Let's configure your project.\n"
+  printf "\n"
+
+  # Tracker mode with validation
+  printf "  Tracker mode determines how agents interact with your issue tracker.\n"
+  printf "  Options:\n"
+  printf "    atlassian  - Jira + Confluence integration (recommended)\n"
+  printf "    github     - GitHub Issues + Wiki (experimental)\n"
+  printf "    standalone - Local only, no external tracker\n"
+  while true; do
+    read -r -p "  > Tracker mode [atlassian]: " tracker_mode
+    tracker_mode="${tracker_mode:-atlassian}"
+    case "$tracker_mode" in
+      atlassian|github|standalone) break ;;
+      *) printf "  %bInvalid mode '%s'. Choose: atlassian, github, or standalone%b\n" "${RED}" "$tracker_mode" "${NC}" ;;
+    esac
+  done
+
+  # Test command
+  read -r -p "  > Test command (e.g., npm test, pytest) [npm test]: " test_cmd
+  test_cmd="${test_cmd:-npm test}"
+
+  # Lint command
+  read -r -p "  > Lint command (e.g., npm run lint, pylint) [npm run lint]: " lint_cmd
+  lint_cmd="${lint_cmd:-npm run lint}"
+
+  # Write config with proper JSON escaping
+  # Escape backslashes and double quotes in user input
+  test_cmd_escaped=$(printf '%s' "$test_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')
+  lint_cmd_escaped=$(printf '%s' "$lint_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')
+
+  cat > "$PROJECT_CONFIG" <<EOF
+{
+  "version": "1.0",
+  "tracker": {
+    "mode": "${tracker_mode}"
+  },
+  "tooling": {
+    "test_command": "${test_cmd_escaped}",
+    "lint_command": "${lint_cmd_escaped}"
+  }
+}
+EOF
+
+  printf -- "- Created %s\n" "$PROJECT_CONFIG"
+  
+  # Mode-specific guidance
+  if [ "$tracker_mode" = "atlassian" ]; then
+    printf "\n"
+    printf "  %bAtlassian mode requires environment variables:%b\n" "${BLUE}" "${NC}"
+    printf "    CONFLUENCE_SPACE_KEY - Your Confluence space key (e.g., ENG)\n"
+    printf "  See .env.example for details.\n"
+  elif [ "$tracker_mode" = "github" ]; then
+    printf "\n"
+    if command -v gh >/dev/null 2>&1; then
+      printf "  - gh CLI: found\n"
+    else
+      printf "  %bGitHub mode requires the gh CLI:%b\n" "${BLUE}" "${NC}"
+      printf "    Install with: brew install gh (macOS) or see https://cli.github.com\n"
+      printf "    Then authenticate: gh auth login\n"
+    fi
+  fi
+fi
+
+# Generate opencode.jsonc from configuration
+printf -- "- Generating opencode.jsonc from configuration...\n"
+if node "$SCRIPT_DIR/scripts/config.js" --generate; then
+  printf -- "- Generated opencode.jsonc\n"
+else
+  printf "%b\n" "  ${RED}Warning: Failed to generate opencode.jsonc (will use static config)${NC}"
 fi
 
 # 3. Gitignore (host repo)
 printf "\n"
-printf "%b\n" "${GREEN}[3/4] Configuring .gitignore (Host Repo)...${NC}"
+printf "%b\n" "${GREEN}[4/5] Configuring .gitignore (Host Repo)...${NC}"
 
 if [ ! -f "$GITIGNORE" ]; then
   : > "$GITIGNORE"
@@ -114,15 +208,15 @@ fi
 
 # Ensure local state stays untracked, but keep .agency-rules.md committed.
 if grep -qE '^[[:space:]]*/?\.agency-rules\.md[[:space:]]*$' "$GITIGNORE"; then
-  printf "- WARNING: %s currently ignores .agency-rules.md\n" "$GITIGNORE"
+  printf -- "- WARNING: %s currently ignores .agency-rules.md\n" "$GITIGNORE"
   read -r -p "  Remove that ignore entry so .agency-rules.md can be committed? (Y/n) " remove_ignore
   if [ "${remove_ignore}" != "n" ]; then
     tmp="$GITIGNORE.tmp.$$"
     grep -vE '^[[:space:]]*/?\.agency-rules\.md[[:space:]]*$' "$GITIGNORE" > "$tmp" || true
     mv "$tmp" "$GITIGNORE"
-    printf "- Removed .agency-rules.md ignore entry\n"
+    printf -- "- Removed .agency-rules.md ignore entry\n"
   else
-    printf "- Keeping ignore entry (you will NOT be able to commit .agency-rules.md)\n"
+    printf -- "- Keeping ignore entry (you will NOT be able to commit .agency-rules.md)\n"
   fi
 fi
 
@@ -139,20 +233,42 @@ if ! grep -qF "$OPENCODE_BLOCK_START" "$GITIGNORE"; then
   {
     printf "\n%s\n" "$OPENCODE_BLOCK_START"
     printf "%s\n" ".opencode/"
+    printf "%s\n" "opencode.jsonc"
   } >> "$GITIGNORE"
 fi
 
-printf "- Ensured local state is ignored in %s\n" "$GITIGNORE"
+printf -- "- Ensured local state is ignored in %s\n" "$GITIGNORE"
 
 # 4. Finalize
 printf "\n"
-printf "%b\n" "${GREEN}[4/4] Setup Complete${NC}"
-printf "-----------------------------------------\n"
-printf "Next steps:\n"
-printf "  1) Commit %s\n" "$RULES_FILE"
-printf "  2) Run: opencode --config .agency/opencode.jsonc\n\n"
+printf "%b\n" "${GREEN}[5/5] Setup Complete${NC}"
+printf -- "-----------------------------------------\n"
 
-read -r -p "Start OpenCode now? (y/N) " start_now
-if [ "${start_now}" = "y" ]; then
-  opencode --config .agency/opencode.jsonc
+# Show resolved config summary
+printf "Resolved configuration:\n"
+if command -v node >/dev/null 2>&1; then
+  config_json=$(node "$SCRIPT_DIR/scripts/config.js" 2>/dev/null)
+  if [ -n "$config_json" ]; then
+    tracker_mode=$(printf '%s' "$config_json" | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).tracker.mode" 2>/dev/null)
+    default_model=$(printf '%s' "$config_json" | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).models.default" 2>/dev/null)
+    test_cmd=$(printf '%s' "$config_json" | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).tooling.test_command || 'not set'" 2>/dev/null)
+    printf "  Tracker mode:  %s\n" "$tracker_mode"
+    printf "  Default model: %s\n" "$default_model"
+    printf "  Test command:  %s\n" "$test_cmd"
+  fi
+fi
+printf "\n"
+
+printf "Next steps:\n"
+printf "  1) Commit %s and %s\n" "$RULES_FILE" "$PROJECT_CONFIG"
+printf "  2) Run: opencode --config %s/opencode.jsonc\n" "$HOST_ROOT"
+printf "\n"
+printf "Tip: For org-wide defaults, create .agency-org.json in your repo root.\n"
+printf "     Config layers: defaults.json -> .agency-org.json -> .agency-project.json\n\n"
+
+if [ "$OPENCODE_FOUND" = true ]; then
+  read -r -p "Start OpenCode now? (y/N) " start_now
+  if [ "${start_now}" = "y" ]; then
+    opencode --config "$HOST_ROOT/opencode.jsonc"
+  fi
 fi
