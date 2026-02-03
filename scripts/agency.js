@@ -38,14 +38,18 @@ function parseArgs(argv) {
 }
 
 function parseFlags(argv) {
-  // Very small flag parser: supports --key value and repeated flags.
+  // Very small flag parser: supports:
+  // - --key value
+  // - --flag (boolean true)
+  // - repeated flags (collect into arrays)
   const flags = {};
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (!a.startsWith('--')) continue;
     const key = a.slice(2);
-    const value = argv[i + 1];
-    i += 1;
+    const next = argv[i + 1];
+    const value = next !== undefined && !String(next).startsWith('--') ? next : true;
+    if (value !== true) i += 1;
     if (flags[key] === undefined) {
       flags[key] = value;
     } else if (Array.isArray(flags[key])) {
