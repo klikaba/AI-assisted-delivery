@@ -185,7 +185,12 @@ function main() {
     die(`opencode run failed (exit=${opencodeRes.status}).\nSTDOUT:\n${out}\n\nSTDERR:\n${err}`);
   }
 
-  if (!out.trim()) {
+  // OpenCode should emit JSON events on stdout in `--format json`, but be tolerant:
+  // some environments/tools may mix logs into stderr. If stdout is empty but stderr
+  // contains JSON lines, accept those as events.
+  const eventText = out.trim() ? out : err;
+
+  if (!eventText.trim()) {
     die(
       [
         'opencode run returned exit=0 but produced no JSON event output.',
@@ -198,7 +203,7 @@ function main() {
     );
   }
 
-  const events = parseJsonAny(out);
+  const events = parseJsonAny(eventText);
   const toolUses = extractToolUses(events);
   const toolNames = toolUses.map((u) => u.name);
 
