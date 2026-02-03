@@ -1,0 +1,34 @@
+{
+  "ok": true,
+  "mode": "atlassian",
+  "execute": true,
+  "trace": [
+    {
+      "op": "tracker.search",
+      "args": [
+        "labels"
+      ]
+    },
+    {
+      "op": "scm.pr_create",
+      "args": [
+        "body",
+        "title"
+      ]
+    },
+    {
+      "op": "scm.pr_link_ticket",
+      "args": [
+        "number",
+        "ticket"
+      ]
+    },
+    {
+      "op": "tracker.comment",
+      "args": [
+        "body",
+        "id"
+      ]
+    }
+  ]
+}

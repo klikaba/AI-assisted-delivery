@@ -1,0 +1,48 @@
+{
+  "ok": true,
+  "mode": "atlassian",
+  "execute": true,
+  "trace": [
+    {
+      "op": "tracker.search",
+      "args": [
+        "labels"
+      ]
+    },
+    {
+      "op": "tracker.get",
+      "args": [
+        "id"
+      ]
+    },
+    {
+      "op": "docs.create",
+      "args": [
+        "status",
+        "title"
+      ]
+    },
+    {
+      "op": "tracker.comment",
+      "args": [
+        "body",
+        "id"
+      ]
+    },
+    {
+      "op": "tracker.comment",
+      "args": [
+        "body",
+        "id"
+      ]
+    },
+    {
+      "op": "tracker.set_labels",
+      "args": [
+        "add",
+        "id",
+        "remove"
+      ]
+    }
+  ]
+}

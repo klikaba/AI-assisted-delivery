@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "mode": "atlassian",
+  "execute": true,
+  "trace": [
+    {
+      "op": "tracker.search",
+      "args": [
+        "labels"
+      ]
+    },
+    {
+      "op": "tracker.comment",
+      "args": [
+        "body",
+        "id"
+      ]
+    },
+    {
+      "op": "tracker.set_labels",
+      "args": [
+        "add",
+        "id",
+        "remove"
+      ]
+    },
+    {
+      "op": "tracker.transition",
+      "args": [
+        "id",
+        "status"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "tracker": {
+    "mode": "atlassian",
+    "atlassian": {
+      "backend": "mcp",
+      "mcp_url": "https://mcp.atlassian.com/v1/sse"
+    }
+  }
+}
+
