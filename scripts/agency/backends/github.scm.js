@@ -56,20 +56,35 @@ function pr_create({ title, body, head, base, draft, labels, reviewers, assignee
   const number = Number(pr.number);
 
   // Apply metadata after creation.
-  // Reviewers/assignees are best-effort; gh will error if invalid, so keep it optional.
+  // Labels/reviewers/assignees are best-effort. We do not want a metadata
+  // failure to block PR creation, because repos differ (permissions, settings,
+  // supported flags, etc.). If an operation fails, we return a warning.
+  const warnings = [];
   const addLabels = coerceStringArray(labels);
   if (addLabels.length > 0) {
-    runGh(['pr', 'edit', String(number), ...addLabels.flatMap((l) => ['--add-label', l])]);
+    try {
+      runGh(['pr', 'edit', String(number), ...addLabels.flatMap((l) => ['--add-label', l])]);
+    } catch (err) {
+      warnings.push(`Failed to add PR labels: ${err && err.message ? err.message : String(err)}`);
+    }
   }
 
   const addReviewers = coerceStringArray(reviewers);
   if (addReviewers.length > 0) {
-    runGh(['pr', 'edit', String(number), ...addReviewers.flatMap((r) => ['--add-reviewer', r])]);
+    try {
+      runGh(['pr', 'edit', String(number), ...addReviewers.flatMap((r) => ['--add-reviewer', r])]);
+    } catch (err) {
+      warnings.push(`Failed to add PR reviewers: ${err && err.message ? err.message : String(err)}`);
+    }
   }
 
   const addAssignees = coerceStringArray(assignees);
   if (addAssignees.length > 0) {
-    runGh(['pr', 'edit', String(number), ...addAssignees.flatMap((a) => ['--add-assignee', a])]);
+    try {
+      runGh(['pr', 'edit', String(number), ...addAssignees.flatMap((a) => ['--add-assignee', a])]);
+    } catch (err) {
+      warnings.push(`Failed to add PR assignees: ${err && err.message ? err.message : String(err)}`);
+    }
   }
 
   // Re-fetch final shape.
@@ -82,7 +97,7 @@ function pr_create({ title, body, head, base, draft, labels, reviewers, assignee
   ]);
   const pr2 = JSON.parse(json2);
 
-  return {
+  const out = {
     pr: {
       number: Number(pr2.number),
       title: pr2.title || '',
@@ -95,6 +110,8 @@ function pr_create({ title, body, head, base, draft, labels, reviewers, assignee
       labels: Array.isArray(pr2.labels) ? pr2.labels.map((l) => l.name).sort() : []
     }
   };
+  if (warnings.length > 0) out.warnings = warnings;
+  return out;
 }
 
 function pr_get({ number }) {
