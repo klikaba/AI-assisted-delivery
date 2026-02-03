@@ -7,6 +7,23 @@ This repository provides a portable, role-based Agentic SDLC configuration desig
 Release notes: `RELEASE_NOTES.md`
 Changelog: `CHANGELOG.md`
 
+## Quickstart (Teams)
+
+From your host repository root:
+
+```bash
+git submodule add <THIS_REPO_URL> .agency
+git submodule update --init --recursive
+
+./.agency/bin/agency init --mode atlassian
+git add .agency-project.json .agency-rules.md .gitignore
+git commit -m "chore: configure .agency"
+
+opencode --config opencode.jsonc
+```
+
+If you get stuck, run: `./.agency/bin/agency doctor`
+
 ## What This Is
 
 - A set of governed SDLC agent prompts (Product, Planning, Architecture, Dev, QA, Review, Security, DevOps, PM).
@@ -30,7 +47,7 @@ This creates/updates:
 Initial setup (writes host repo files, not the submodule):
 
 ```bash
-./.agency/setup.sh
+./.agency/bin/agency init --mode atlassian
 ```
 
 After setup, commit the generated configuration files:
@@ -44,6 +61,12 @@ Run OpenCode:
 
 ```bash
 opencode --config opencode.jsonc
+```
+
+Legacy setup wizard (optional):
+
+```bash
+./.agency/setup.sh
 ```
 
 If you are developing this repository directly (not as a submodule), you can run:
@@ -70,9 +93,9 @@ git commit -m "chore: bump .agency submodule"
 
 - `git` (for submodules)
 - `opencode` available on PATH
-- `node` (required for `.agency/scripts/memory.js`)
-- `npx` (used by `opencode.jsonc` to run `mcp-remote` for Atlassian MCP)
-- `gh` (GitHub CLI, required for GitHub tracker mode only)
+- `node` (required for `.agency/scripts/*` tooling, including Agency MCP)
+- `npx` (optional; only needed if you set `tracker.atlassian.backend` to `mcp` in config)
+- `gh` (GitHub CLI, required if you use `tracker.mode=github` and/or `scm.provider=github`)
 
 If `setup.sh` reports missing tools, you can still run setup and install the missing dependencies afterwards.
 
@@ -84,8 +107,11 @@ If `setup.sh` reports missing tools, you can still run setup and install the mis
 - `.agency/prompts/github/`: agent prompts (GitHub mode).
 - `.agency/prompts/standalone/`: agent prompts (standalone mode).
 - `.agency/rules.md`: shared/global rules.
+- `.agency/bin/agency`: team-friendly CLI (`init`, `generate`, `doctor`, `test --profile`).
 - `.agency/scripts/config.js`: configuration engine.
 - `.agency/scripts/memory.js`: context engine.
+- `.agency/scripts/agency-mcp.js`: local MCP server exposing stable capability tools (`tracker.*`, `docs.*`).
+- `.agency/scripts/agency.js`: integration CLI (debugging/manual use; same capability surface).
 - `.agency/setup.sh`: setup wizard.
 
 ## Host Repo Files
@@ -95,7 +121,7 @@ These files live in your host repository root:
 - `.agency-project.json`: project configuration (commit this file).
 - `.agency-org.json`: organization configuration (optional, commit if shared).
 - `.agency-rules.md`: repository rules (commit this file).
-- `.agency-memory.json`: local runtime memory/state (gitignored).
+- `.agency-memory.json`: local runtime memory/state (gitignored). If you want to run with no memory, set it to `[]` (or leave it empty) and it will be respected.
 - `opencode.jsonc`: generated OpenCode config (gitignored).
 
 The setup script ensures the host `.gitignore` ignores `.agency-memory.json`, `opencode.jsonc`, and `.opencode/`.
@@ -126,6 +152,9 @@ The platform uses a layered configuration system that merges settings from multi
   "tracker": {
     "mode": "atlassian"
   },
+  "scm": {
+    "provider": "github"
+  },
   "models": {
     "default": "openai/gpt-4o"
   },
@@ -141,9 +170,33 @@ The platform uses a layered configuration system that merges settings from multi
 
 ### Tracker Modes
 
-- `atlassian` - Jira + Confluence integration (default, full MCP support)
-- `github` - GitHub Issues + PRs workflow (full prompts, no MCP configured)
-- `standalone` - No external tracker, interactive local workflow
+- `atlassian` - Jira + Confluence integration (default). Uses Atlassian Cloud REST APIs behind the Agency tools by default.
+- `github` - GitHub Issues workflow. Uses `gh` behind the Agency tools.
+- `standalone` - No external tracker; workflows can run offline using the fake backend for testing.
+
+### Jira + GitHub Together (Recommended)
+
+Most teams use:
+
+- Jira/Confluence as the system of record for work and specs: `tracker.*`, `docs.*`
+- GitHub for PR workflow: `scm.*` (via `gh`)
+
+Configure that per-repo with:
+
+```json
+{
+  "version": "1.0",
+  "tracker": { "mode": "atlassian" },
+  "scm": { "provider": "github" }
+}
+```
+
+### Atlassian Backend Selection
+
+Atlassian supports two backend modes:
+
+- `tracker.atlassian.backend = "api"` (default): uses Jira/Confluence REST APIs.
+- `tracker.atlassian.backend = "mcp"`: uses `mcp-remote` with `tracker.atlassian.mcp_url`.
 
 ### Configuration CLI
 
@@ -189,6 +242,49 @@ Output includes:
 - `rules` - global and local rules markdown
 - `warnings` - any issues encountered
 
+## Integration Layer (Agency MCP)
+
+This platform exposes a stable, vendor-agnostic tool surface to agents via a local MCP server:
+
+- Tracker tools: `tracker.search`, `tracker.get`, `tracker.comment`, `tracker.transition`, `tracker.set_labels`
+- Docs tools: `docs.create`, `docs.get`, `docs.update`
+- SCM tools: `scm.pr_create`, `scm.pr_get`, `scm.pr_comment`, `scm.pr_set_labels`, `scm.pr_link_ticket`
+
+The `opencode.jsonc` generator enables this MCP server automatically via `mcp.agency`.
+
+Note: Some MCP clients namespace tool names by server id. This server also exposes aliases like `agency.tracker.search`.
+
+For debugging or scripting, you can also call the same capabilities via the CLI:
+
+```bash
+node .agency/scripts/agency.js tracker search --label ai-state:ready-for-plan --json
+```
+
+## Testing & Conformance
+
+For maintainability and safe client customization, this repository includes deterministic, network-free end-to-end simulations and trace snapshots.
+
+Host repo checks:
+
+1. `./.agency/bin/agency doctor`
+2. `./.agency/bin/agency generate`
+
+Profile conformance tests (client/team config):
+
+```bash
+./.agency/bin/agency test --profile .agency/profiles/atlassian
+```
+
+Developing `.agency` itself:
+
+1. `npm test`
+2. Update trace snapshots when changes are intentional: `npm run test:update-traces`
+
+Optional live checks (real auth + network):
+
+1. `AGENCY_DOCTOR_LIVE=1 ./.agency/bin/agency doctor`
+2. Live E2E (manual/nightly, requires `AGENCY_LIVE_E2E=1`): `node .agency/scripts/live-e2e/run.js`
+
 ## Jira Workflow Contract
 
 Portable state machine (labels):
@@ -205,8 +301,8 @@ Jira status transitions are treated as best-effort. Jira status names differ acr
 
 ## Basic Usage
 
-1. Run setup: `./.agency/setup.sh`
-2. Commit config: `git add .agency-project.json .agency-rules.md && git commit`
+1. Initialize: `./.agency/bin/agency init --mode atlassian`
+2. Commit host config: `git add .agency-project.json .agency-rules.md .gitignore && git commit`
 3. Start OpenCode: `opencode --config opencode.jsonc`
 4. Choose an agent (e.g. Product Owner, Planning, Developer).
 5. Use Jira labels (`ai-state:*`) to move issues through the workflow.

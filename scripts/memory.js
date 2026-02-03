@@ -51,6 +51,12 @@ function gitRevParse(args, cwd) {
 }
 
 function detectProjectRoot() {
+  // Test/automation override: allow running against an arbitrary host root
+  // without depending on git topology (useful for hermetic tests and profiles).
+  if (process.env.AGENCY_HOST_ROOT) {
+    return path.resolve(process.env.AGENCY_HOST_ROOT);
+  }
+
   // Anchor git detection to the .agency checkout location so callers can run
   // this script from any working directory.
   const agencyRoot = path.join(__dirname, '..');
@@ -116,17 +122,11 @@ function ensureSeededMemory(filePath, warnings) {
   }
 
   const raw = safeReadText(filePath);
-  if (raw.trim() === '' || raw.trim() === '[]') {
-    try {
-      fs.writeFileSync(filePath, JSON.stringify(SEED_MEMORY, null, 2));
-    } catch {
-      warnings.push({
-        kind: 'memory-write-failed',
-        message: `Failed to seed ${path.basename(filePath)}; returning seed memory in output only.`
-      });
-      return SEED_MEMORY;
-    }
-    return SEED_MEMORY;
+  if (raw.trim() === '') {
+    return [];
+  }
+  if (raw.trim() === '[]') {
+    return [];
   }
 
   return null;
@@ -140,7 +140,8 @@ function main() {
   const localMemoryFile = path.join(projectRoot, '.agency-memory.json');
   const localRulesFile = path.join(projectRoot, '.agency-rules.md');
 
-  // Ensure memory exists and contains at least seed facts.
+  // Initialize memory on first run, while honoring intentionally empty memory
+  // (empty file or `[]`) for runs where you want no carry-over state.
   const seeded = ensureSeededMemory(localMemoryFile, warnings);
   const memory = seeded ?? safeReadJsonArray(localMemoryFile, warnings) ?? SEED_MEMORY;
 

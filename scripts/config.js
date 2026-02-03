@@ -17,6 +17,12 @@ const cp = require('child_process');
  * Find host repository root (handles submodule case)
  */
 function findHostRoot(agencyRoot) {
+  // Test/automation override: allow running against an arbitrary host root
+  // without depending on git topology (useful for hermetic tests and profiles).
+  if (process.env.AGENCY_HOST_ROOT) {
+    return path.resolve(process.env.AGENCY_HOST_ROOT);
+  }
+
   // Anchor git commands to the .agency checkout location so callers can run this
   // script from any working directory.
   const gitCwd = agencyRoot || path.resolve(__dirname, '..');
@@ -66,13 +72,18 @@ function deepMerge(target, source) {
 /**
  * Load JSON file safely
  */
-function loadJSON(filepath) {
+function loadJSON(filepath, parseErrors) {
   try {
     if (!fs.existsSync(filepath)) return null;
     const content = fs.readFileSync(filepath, 'utf8');
     return JSON.parse(content);
   } catch (err) {
-    console.error(`Warning: Failed to parse ${filepath}: ${err.message}`);
+    const message = `Failed to parse ${filepath}: ${err.message}`;
+    if (Array.isArray(parseErrors)) {
+      parseErrors.push(message);
+    } else {
+      console.error(`Warning: ${message}`);
+    }
     return null;
   }
 }
@@ -115,15 +126,16 @@ function loadEnvOverrides() {
 function loadConfig() {
   const agencyRoot = path.resolve(__dirname, '..');
   const hostRoot = findHostRoot(agencyRoot);
+  const parseErrors = [];
 
   // Layer 1: Platform defaults
-  const defaults = loadJSON(path.join(agencyRoot, 'defaults.json')) || {};
+  const defaults = loadJSON(path.join(agencyRoot, 'defaults.json'), parseErrors) || {};
 
   // Layer 2: Org config (optional)
-  const orgConfig = loadJSON(path.join(hostRoot, '.agency-org.json'));
+  const orgConfig = loadJSON(path.join(hostRoot, '.agency-org.json'), parseErrors);
 
   // Layer 3: Project config
-  const projectConfig = loadJSON(path.join(hostRoot, '.agency-project.json'));
+  const projectConfig = loadJSON(path.join(hostRoot, '.agency-project.json'), parseErrors);
 
   // Layer 4: Environment overrides
   const envOverrides = loadEnvOverrides();
@@ -149,7 +161,8 @@ function loadConfig() {
       agencyRoot,
       hostRoot,
       hasOrgConfig: !!orgConfig,
-      hasProjectConfig: !!projectConfig
+      hasProjectConfig: !!projectConfig,
+      parseErrors
     }
   };
 }
@@ -168,9 +181,28 @@ function validateConfig(config) {
     errors.push('tracker.mode must be one of: atlassian, github, standalone');
   }
 
+  // Atlassian backend selection (optional; defaults to api)
+  if (config.tracker?.mode === 'atlassian') {
+    const backend = config.tracker?.atlassian?.backend || 'api';
+    if (!['api', 'mcp'].includes(backend)) {
+      errors.push('tracker.atlassian.backend must be one of: api, mcp');
+    }
+    if (backend === 'mcp' && !config.tracker?.atlassian?.mcp_url) {
+      errors.push('tracker.atlassian.mcp_url is required when tracker.atlassian.backend is "mcp"');
+    }
+  }
+
   // Check default model
   if (!config.models?.default) {
     warnings.push('models.default not set - agents may fail');
+  }
+
+  // SCM provider (optional; default is none)
+  if (config.scm?.provider !== undefined) {
+    const p = String(config.scm.provider);
+    if (!['none', 'github'].includes(p)) {
+      errors.push('scm.provider must be one of: none, github');
+    }
   }
 
   // Check at least one agent is enabled
@@ -191,7 +223,17 @@ function generateOpenCodeConfig(config, meta) {
 
   // Build MCP config based on tracker mode
   const mcp = {};
-  if (config.tracker.mode === 'atlassian') {
+  // Always expose the stable Agency capability tools via a local MCP server.
+  const isSubmodule = meta.hostRoot !== meta.agencyRoot;
+  const agencyMcpScript = isSubmodule ? '.agency/scripts/agency-mcp.js' : 'scripts/agency-mcp.js';
+  mcp.agency = {
+    type: 'local',
+    command: ['node', agencyMcpScript],
+    enabled: true
+  };
+
+  const atlassianBackend = config.tracker?.atlassian?.backend || 'api';
+  if (config.tracker.mode === 'atlassian' && atlassianBackend === 'mcp') {
     mcp.atlassian = {
       type: 'local',
       command: [
@@ -269,7 +311,6 @@ function generateOpenCodeConfig(config, meta) {
   // Determine the relative path to prompts based on where opencode.jsonc will be
   // If hostRoot contains .agency as a submodule, prompts are at .agency/prompts/
   // If running standalone (hostRoot === agencyRoot), prompts are at ./prompts/
-  const isSubmodule = meta.hostRoot !== meta.agencyRoot;
   const basePromptPath = isSubmodule ? '.agency/prompts/' : './prompts/';
   
   // Mode-specific prompt paths:
@@ -373,6 +414,16 @@ function main() {
 
   try {
     const { config, meta } = loadConfig();
+    if (meta.parseErrors && meta.parseErrors.length > 0) {
+      if (args.validate || args.generate) {
+        console.error('Errors:');
+        meta.parseErrors.forEach(e => console.error(`  - ${e}`));
+        process.exit(1);
+      } else {
+        console.error('Warnings:');
+        meta.parseErrors.forEach(e => console.error(`  - ${e}`));
+      }
+    }
 
     if (args.validate) {
       const result = validateConfig(config);

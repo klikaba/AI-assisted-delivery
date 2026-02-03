@@ -17,8 +17,12 @@
   "tracker": {
     "mode": "atlassian",
     "atlassian": {
+      "backend": "api",
       "mcp_url": "https://mcp.atlassian.com/v1/sse"
     }
+  },
+  "scm": {
+    "provider": "none"
   },
   "agents": {
     "product_owner": { "enabled": true },
