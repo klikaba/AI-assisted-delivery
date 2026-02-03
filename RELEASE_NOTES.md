@@ -1,5 +1,23 @@
 # Release Notes
 
+## 0.5.0
+
+Stabilization release for real team usage across Jira/Confluence + GitHub.
+
+Highlights:
+
+- Stable capability layer exposed to agents via local Agency MCP:
+  - Tracker: `tracker.search/get/comment/transition/set_labels`
+  - Docs: `docs.create/get/update`
+  - SCM (GitHub PRs via `gh`): `scm.pr_create/pr_get/pr_comment/pr_set_labels/pr_link_ticket`
+- Repo-by-repo customization with confidence:
+  - Profile conformance runner (`agency test --profile ...`)
+  - Deterministic simulated E2E flows + trace snapshots
+- Improved operator workflow:
+  - `./.agency/bin/agency init|generate|doctor|test`
+  - Doctor checks that explain required tools and validate `gh` auth in live mode.
+- Gated OpenCode agent-run smoke test: `npm run e2e:agent`
+
 ## 0.4.1
 
 Documentation-focused patch release.
