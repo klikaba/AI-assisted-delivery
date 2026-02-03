@@ -76,21 +76,42 @@ function parseJsonLines(text) {
   return out;
 }
 
+function parseJsonAny(text) {
+  // Try JSONL first.
+  const lines = parseJsonLines(text);
+  if (lines.length > 0) return lines;
+
+  // Fallback: try parse a single JSON value.
+  try {
+    const parsed = JSON.parse(String(text));
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed && typeof parsed === 'object') return [parsed];
+  } catch {
+    // ignored
+  }
+  return [];
+}
+
+function walkObjects(value, visitor) {
+  if (!value || typeof value !== 'object') return;
+  visitor(value);
+  if (Array.isArray(value)) {
+    for (const v of value) walkObjects(v, visitor);
+    return;
+  }
+  for (const v of Object.values(value)) walkObjects(v, visitor);
+}
+
 function extractToolUses(events) {
   const uses = [];
-  for (const e of events) {
-    if (!e || typeof e !== 'object') continue;
-
-    // Observed in the wild:
-    // - { type: "tool_use", name, input, ... }
-    // - (fallback) { event: "tool_use", ... }
+  walkObjects(events, (e) => {
+    if (!e || typeof e !== 'object') return;
     const type = e.type || e.event || null;
-    if (type !== 'tool_use') continue;
-
+    if (type !== 'tool_use') return;
     const name = e.name || e.tool || e.tool_name || null;
-    if (!name) continue;
+    if (!name) return;
     uses.push({ name: String(name), raw: e });
-  }
+  });
   return uses;
 }
 
@@ -105,6 +126,7 @@ function main() {
   }
 
   const hostRoot = mkTempHost();
+  process.stdout.write(`OpenCode agent E2E: hostRoot=${hostRoot}\n`);
   const agencyPath = path.join(hostRoot, '.agency');
   safeSymlink(repoRoot(), agencyPath);
 
@@ -147,6 +169,11 @@ function main() {
     cwd: hostRoot,
     env: {
       ...process.env,
+      // Ensure OpenCode writes its local state under the temp host root so this
+      // harness is hermetic and doesn't depend on home-directory permissions.
+      XDG_DATA_HOME: path.join(hostRoot, '.xdg', 'data'),
+      XDG_CONFIG_HOME: path.join(hostRoot, '.xdg', 'config'),
+      XDG_STATE_HOME: path.join(hostRoot, '.xdg', 'state'),
       AGENCY_HOST_ROOT: hostRoot,
       AGENCY_INTEGRATION_BACKEND: 'fake'
     }
@@ -158,14 +185,40 @@ function main() {
     die(`opencode run failed (exit=${opencodeRes.status}).\nSTDOUT:\n${out}\n\nSTDERR:\n${err}`);
   }
 
-  const events = parseJsonLines(out);
+  if (!out.trim()) {
+    die(
+      [
+        'opencode run returned exit=0 but produced no JSON event output.',
+        'This typically means the run failed before emitting events (e.g., model/provider unreachable, auth missing, or OpenCode internal error).',
+        'Re-run with: opencode run --print-logs --format json ... to see more detail.',
+        '',
+        'STDERR:',
+        err || '(empty)'
+      ].join('\n')
+    );
+  }
+
+  const events = parseJsonAny(out);
   const toolUses = extractToolUses(events);
   const toolNames = toolUses.map((u) => u.name);
 
   const hasTrackerSearch = toolNames.some((n) => n === 'tracker.search' || n === 'agency.tracker.search');
   if (!hasTrackerSearch) {
     const preview = toolNames.length ? toolNames.join(', ') : '(none)';
-    die(`No tracker.search tool call observed. toolUses=${preview}\nTip: set AGENCY_E2E_AGENT_MESSAGE for a more explicit prompt.`);
+    const eventTypes = [];
+    for (const e of events.slice(0, 50)) {
+      const t = e && typeof e === 'object' ? (e.type || e.event || null) : null;
+      if (t) eventTypes.push(String(t));
+    }
+    const firstLine = String(out).split('\n').find((l) => l.trim()) || '';
+    die(
+      [
+        `No tracker.search tool call observed. toolUses=${preview}`,
+        `eventTypes(seen)=${eventTypes.slice(0, 15).join(', ') || '(none)'}`,
+        `stdoutFirstLine=${firstLine ? JSON.stringify(firstLine.slice(0, 200)) : '(empty)'}`,
+        'Tip: set AGENCY_E2E_AGENT_MESSAGE for a more explicit prompt.'
+      ].join('\n')
+    );
   }
 
   process.stdout.write('OpenCode agent E2E: OK\n');
@@ -175,4 +228,3 @@ function main() {
 }
 
 main();
-

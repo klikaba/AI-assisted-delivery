@@ -291,7 +291,7 @@ Optional live checks (real auth + network):
 
 Agent-run E2E (OpenCode smoke test):
 
-- `npm run e2e:agent` (requires OpenCode installed; uses fake backend; gated)
+- `npm run e2e:agent` (requires OpenCode installed + model/provider access; uses fake backend; gated)
 
 ## Jira Workflow Contract
 
