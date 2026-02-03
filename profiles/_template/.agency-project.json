@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "tracker": {
+    "mode": "atlassian",
+    "atlassian": { "backend": "api" }
+  },
+  "scm": {
+    "provider": "github"
+  },
+  "tooling": {
+    "test_command": "npm test",
+    "lint_command": "npm run lint",
+    "build_command": null
+  },
+  "agents": {
+    "devops": { "enabled": false }
+  }
+}
+

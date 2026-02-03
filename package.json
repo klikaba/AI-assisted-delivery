@@ -8,6 +8,7 @@
     "agency:cli": "node scripts/agency-cli.js",
     "doctor": "node scripts/doctor.js",
     "doctor:live": "AGENCY_DOCTOR_LIVE=1 node scripts/doctor.js",
+    "e2e:agent": "AGENCY_E2E_AGENT=1 node scripts/e2e/opencode-agent-smoke.js",
     "sim:planning": "node scripts/simulate/planning.js --json",
     "sim:pm-sync": "node scripts/simulate/pm-sync.js --json",
     "sim:dev-complete": "node scripts/simulate/dev-complete.js --json",

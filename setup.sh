@@ -288,7 +288,7 @@ printf "\n"
 
 printf "Next steps:\n"
 printf "  1) Commit %s and %s\n" "$RULES_FILE" "$PROJECT_CONFIG"
-printf "  2) Run: opencode --config %s/opencode.jsonc\n" "$HOST_ROOT"
+printf "  2) Run: opencode %s\n" "$HOST_ROOT"
 printf "\n"
 printf "Tip: For org-wide defaults, create .agency-org.json in your repo root.\n"
 printf "     Config layers: defaults.json -> .agency-org.json -> .agency-project.json\n\n"

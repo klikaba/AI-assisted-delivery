@@ -275,6 +275,10 @@ Profile conformance tests (client/team config):
 ./.agency/bin/agency test --profile .agency/profiles/atlassian
 ```
 
+Client profile template:
+
+- `.agency/profiles/_template/`
+
 Developing `.agency` itself:
 
 1. `npm test`
@@ -284,6 +288,10 @@ Optional live checks (real auth + network):
 
 1. `AGENCY_DOCTOR_LIVE=1 ./.agency/bin/agency doctor`
 2. Live E2E (manual/nightly, requires `AGENCY_LIVE_E2E=1`): `node .agency/scripts/live-e2e/run.js`
+
+Agent-run E2E (OpenCode smoke test):
+
+- `npm run e2e:agent` (requires OpenCode installed; uses fake backend; gated)
 
 ## Jira Workflow Contract
 
@@ -303,7 +311,7 @@ Jira status transitions are treated as best-effort. Jira status names differ acr
 
 1. Initialize: `./.agency/bin/agency init --mode atlassian`
 2. Commit host config: `git add .agency-project.json .agency-rules.md .gitignore && git commit`
-3. Start OpenCode: `opencode --config opencode.jsonc`
+3. Start OpenCode: `opencode .`
 4. Choose an agent (e.g. Product Owner, Planning, Developer).
 5. Use Jira labels (`ai-state:*`) to move issues through the workflow.
 6. Use Confluence `Spec Status` as the human approval gate.
