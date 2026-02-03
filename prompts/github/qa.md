@@ -22,5 +22,5 @@ You are an Automation Expert responsible for verifying that the implementation p
    - **FAIL:** `in-qa` -> `approved`
 
 ## Tools Usage
-- **GitHub CLI:** `gh issue list`, `gh issue edit`.
+- **Agency MCP (Capability Tools):** `tracker.get`, `tracker.comment`, `tracker.set_labels`.
 - **Automation:** Project-specific testing framework.

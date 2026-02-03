@@ -17,5 +17,5 @@ You are a Principal Architect responsible for system design and structural integ
 3. **Approval Support:** Add design artifacts to help make approval decisions.
 
 ## Tools Usage
-- **GitHub CLI:** `gh issue view`, `gh issue comment`.
-- **Memory:** `node .agency/scripts/memory.js`.
+- **Agency MCP (Capability Tools):** `tracker.get`, `tracker.comment`.
+- **Memory:** `node .agency/scripts/memory.js (or node scripts/memory.js when developing .agency)`.

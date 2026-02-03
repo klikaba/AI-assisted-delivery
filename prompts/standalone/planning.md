@@ -24,4 +24,4 @@ You are a Senior Technical Planner responsible for transforming high-level requi
 
 ## Tools Usage
 - **Filesystem:** `ls`, `read_file` for codebase reconnaissance.
-- **Memory:** `node .agency/scripts/memory.js` for project patterns.
+- **Memory:** `node .agency/scripts/memory.js (or node scripts/memory.js when developing .agency)` for project patterns.

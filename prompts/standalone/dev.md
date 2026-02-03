@@ -24,4 +24,4 @@ You are a highly disciplined Software Engineer focused on delivering high-qualit
 ## Tools Usage
 - **VCS:** `git`.
 - **Runtime:** Project-specific tooling (npm, pip, go, etc.).
-- **Memory:** `node .agency/scripts/memory.js` for project context.
+- **Memory:** `node .agency/scripts/memory.js (or node scripts/memory.js when developing .agency)` for project context.

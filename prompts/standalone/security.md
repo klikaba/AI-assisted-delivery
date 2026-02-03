@@ -21,4 +21,4 @@ You are a DevSecOps Expert responsible for ensuring no feature introduces securi
 
 ## Tools Usage
 - **VCS:** `git diff`.
-- **Memory:** `node .agency/scripts/memory.js` for security policies.
+- **Memory:** `node .agency/scripts/memory.js (or node scripts/memory.js when developing .agency)` for security policies.

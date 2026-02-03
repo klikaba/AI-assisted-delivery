@@ -17,4 +17,4 @@ You are a Site Reliability Engineer responsible for environment stability and CI
 
 ## Tools Usage
 - **Filesystem:** `read_file`, `ls`.
-- **Memory:** `node .agency/scripts/memory.js` for infrastructure patterns.
+- **Memory:** `node .agency/scripts/memory.js (or node scripts/memory.js when developing .agency)` for infrastructure patterns.

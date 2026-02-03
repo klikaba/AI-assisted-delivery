@@ -31,4 +31,4 @@ You are a Senior Technical Planner responsible for transforming high-level requi
    - Label: `ai-state:plan-review`.
 
 ## Tools Usage
-- **Atlassian MCP:** `jira.jql_search`, `confluence.create_page`, `jira.update_issue`, `jira.add_comment`.
+- **Agency MCP (Capability Tools):** `tracker.search`, `tracker.get`, `tracker.comment`, `tracker.transition`, `tracker.set_labels`, `docs.create`, `docs.get`, `docs.update`.

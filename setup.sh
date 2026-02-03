@@ -157,11 +157,21 @@ if [ "$CREATE_CONFIG" = true ]; then
   test_cmd_escaped=$(printf '%s' "$test_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')
   lint_cmd_escaped=$(printf '%s' "$lint_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')
 
+  # By default, enable GitHub PR integration for non-standalone repos.
+  # This keeps Jira/Confluence as the system of record while still enabling `scm.*` tools via `gh`.
+  scm_provider="none"
+  if [ "$tracker_mode" != "standalone" ]; then
+    scm_provider="github"
+  fi
+
   cat > "$PROJECT_CONFIG" <<EOF
 {
   "version": "1.0",
   "tracker": {
     "mode": "${tracker_mode}"
+  },
+  "scm": {
+    "provider": "${scm_provider}"
   },
   "tooling": {
     "test_command": "${test_cmd_escaped}",
@@ -176,6 +186,9 @@ EOF
   if [ "$tracker_mode" = "atlassian" ]; then
     printf "\n"
     printf "  %bAtlassian mode requires environment variables:%b\n" "${BLUE}" "${NC}"
+    printf "    ATLASSIAN_SITE - https://<your-domain>.atlassian.net\n"
+    printf "    ATLASSIAN_EMAIL - Your Atlassian account email\n"
+    printf "    ATLASSIAN_API_TOKEN - Atlassian API token\n"
     printf "    CONFLUENCE_SPACE_KEY - Your Confluence space key (e.g., ENG)\n"
     printf "  See .env.example for details.\n"
   elif [ "$tracker_mode" = "github" ]; then
@@ -184,6 +197,18 @@ EOF
       printf "  - gh CLI: found\n"
     else
       printf "  %bGitHub mode requires the gh CLI:%b\n" "${BLUE}" "${NC}"
+      printf "    Install with: brew install gh (macOS) or see https://cli.github.com\n"
+      printf "    Then authenticate: gh auth login\n"
+    fi
+  fi
+
+  # SCM guidance (GitHub PR integration)
+  if [ "$scm_provider" = "github" ]; then
+    printf "\n"
+    if command -v gh >/dev/null 2>&1; then
+      printf "  - gh CLI: found (required for GitHub PR integration)\n"
+    else
+      printf "  %bGitHub PR integration requires the gh CLI:%b\n" "${BLUE}" "${NC}"
       printf "    Install with: brew install gh (macOS) or see https://cli.github.com\n"
       printf "    Then authenticate: gh auth login\n"
     fi
@@ -250,9 +275,11 @@ if command -v node >/dev/null 2>&1; then
   config_json=$(node "$SCRIPT_DIR/scripts/config.js" 2>/dev/null)
   if [ -n "$config_json" ]; then
     tracker_mode=$(printf '%s' "$config_json" | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).tracker.mode" 2>/dev/null)
+    scm_provider=$(printf '%s' "$config_json" | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).scm?.provider || 'none'" 2>/dev/null)
     default_model=$(printf '%s' "$config_json" | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).models.default" 2>/dev/null)
     test_cmd=$(printf '%s' "$config_json" | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).tooling.test_command || 'not set'" 2>/dev/null)
     printf "  Tracker mode:  %s\n" "$tracker_mode"
+    printf "  SCM provider:  %s\n" "$scm_provider"
     printf "  Default model: %s\n" "$default_model"
     printf "  Test command:  %s\n" "$test_cmd"
   fi

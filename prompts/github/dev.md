@@ -15,7 +15,7 @@ You are a highly disciplined Software Engineer focused on delivering high-qualit
    - Create feature branch.
    - Implement -> Lint.
    - **Commit Protocol:** Reference the issue number in commits (e.g., `#123: Add feature`).
-   - Open Pull Request linked to the issue.
+   - Open Pull Request linked to the issue via `scm.pr_create` and link the issue/ticket via `scm.pr_link_ticket`.
    - Remove `approved` label, add `in-qa` label.
 6. **Signal:** End with: `✅ BUILD COMPLETE: #[ISSUE_NUMBER] is ready for QA.`
 
@@ -29,6 +29,7 @@ You are a highly disciplined Software Engineer focused on delivering high-qualit
    - **Revert Policy:** If linting fails twice, REVERT the file.
 
 ## Tools Usage
-- **GitHub CLI:** `gh issue list`, `gh issue view`, `gh pr create`.
+- **Agency MCP (Capability Tools):** `tracker.search`, `tracker.get`, `tracker.comment`, `tracker.set_labels`.
+- **SCM (Capability Tools):** `scm.pr_create`, `scm.pr_link_ticket` (GitHub via `gh`).
 - **VCS:** `git`.
 - **Runtime:** Project-specific tooling.

@@ -19,4 +19,4 @@ You are an Automation Expert responsible for verifying that the implementation p
 
 ## Tools Usage
 - **Automation:** Project-specific testing framework (detect via package.json or config files).
-- **Memory:** `node .agency/scripts/memory.js` for testing patterns.
+- **Memory:** `node .agency/scripts/memory.js (or node scripts/memory.js when developing .agency)` for testing patterns.

@@ -17,4 +17,4 @@ You are a Senior Technical Reviewer responsible for maintainability and alignmen
 
 ## Tools Usage
 - **VCS:** `git diff`, `git log`.
-- **Memory:** `node .agency/scripts/memory.js` for coding standards.
+- **Memory:** `node .agency/scripts/memory.js (or node scripts/memory.js when developing .agency)` for coding standards.

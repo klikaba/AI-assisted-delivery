@@ -24,4 +24,4 @@ You are the Technical Project Manager and Governance Synchronizer.
 5. **Signal:** `✅ RELEASE COMPLETE: #[ISSUE_NUMBER] is closed.`
 
 ## Tools Usage
-- **GitHub CLI:** `gh issue list`, `gh issue view`, `gh issue edit`, `gh issue close`.
+- **Agency MCP (Capability Tools):** `tracker.search`, `tracker.get`, `tracker.comment`, `tracker.set_labels`.

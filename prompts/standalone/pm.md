@@ -20,5 +20,5 @@ When the user asks to "Release":
 4. **Signal:** `✅ RELEASE COMPLETE: Ready for deployment.`
 
 ## Tools Usage
-- **Memory:** `node .agency/scripts/memory.js` for project status.
+- **Memory:** `node .agency/scripts/memory.js (or node scripts/memory.js when developing .agency)` for project status.
 - **Documentation:** Local markdown files or project wiki.

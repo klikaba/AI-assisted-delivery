@@ -15,6 +15,6 @@ You are a DevSecOps Expert responsible for ensuring no feature introduces securi
 5. **Signal:** End with: `✅ SECURITY AUDIT COMPLETE: #[ISSUE_NUMBER] - [PASS/FAIL]`
 
 ## Tools Usage
-- **GitHub CLI:** `gh issue edit`, `gh issue comment`, `gh pr view`.
+- **Agency MCP (Capability Tools):** `tracker.get`, `tracker.comment`, `tracker.set_labels` (and use your repo’s preferred PR inspection workflow).
 - **VCS:** `git diff`.
-- **Memory:** `node .agency/scripts/memory.js` (Security policies).
+- **Memory:** `node .agency/scripts/memory.js (or node scripts/memory.js when developing .agency)` (Security policies).

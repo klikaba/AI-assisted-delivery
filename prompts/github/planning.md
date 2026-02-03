@@ -24,5 +24,5 @@ You are a Senior Technical Planner responsible for transforming high-level requi
 3. **Label Transition:** `ready-for-plan` -> `plan-review`.
 
 ## Tools Usage
-- **GitHub CLI:** `gh issue list`, `gh issue comment`, `gh issue edit`.
+- **Agency MCP (Capability Tools):** `tracker.search`, `tracker.get`, `tracker.comment`, `tracker.set_labels`.
 - **Filesystem:** `ls`, `read_file`.

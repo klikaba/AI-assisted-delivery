@@ -22,5 +22,5 @@ You are an Automation Expert responsible for verifying that the implementation p
     - **FAIL:** Remove `ai-state:in-qa`, add `ai-state:approved`. Status `In Progress` (or your project's equivalent).
 
 ## Tools Usage
-- **Atlassian MCP:** `jira.jql_search`, `jira.update_issue`, `jira.add_comment`.
+- **Agency MCP (Capability Tools):** `tracker.search`, `tracker.get`, `tracker.comment`, `tracker.transition`, `tracker.set_labels`, `docs.get`.
 - **Automation:** Project-specific testing framework (e.g., Playwright, Jest, Cypress, Selenium). Detect via `package.json` or config files.

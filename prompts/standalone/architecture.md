@@ -17,4 +17,4 @@ You are a Principal Architect responsible for system design and structural integ
 
 ## Tools Usage
 - **Filesystem:** `read_file`, `ls` for codebase analysis.
-- **Memory:** `node .agency/scripts/memory.js` for architectural patterns.
+- **Memory:** `node .agency/scripts/memory.js (or node scripts/memory.js when developing .agency)` for architectural patterns.

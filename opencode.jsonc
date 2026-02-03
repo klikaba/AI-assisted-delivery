@@ -8,13 +8,11 @@
     "bash": "ask"
   },
   "mcp": {
-    "atlassian": {
+    "agency": {
       "type": "local",
       "command": [
-        "npx",
-        "-y",
-        "mcp-remote",
-        "https://mcp.atlassian.com/v1/sse"
+        "node",
+        "scripts/agency-mcp.js"
       ],
       "enabled": true
     }
@@ -41,27 +39,27 @@
     "Product Owner Agent": {
       "model": "openai/gpt-4o",
       "description": "Refines backlog items and ensures business clarity.",
-      "prompt": "{file:./prompts/product.md}"
+      "prompt": "{file:./prompts/standalone/product.md}"
     },
     "Planning Agent": {
       "model": "openai/gpt-4o",
       "description": "Converts requirements into Architecture and Plans.",
-      "prompt": "{file:./prompts/planning.md}"
+      "prompt": "{file:./prompts/standalone/planning.md}"
     },
     "Architecture Agent": {
       "model": "openai/gpt-4o",
       "description": "Designs system components and diagrams.",
-      "prompt": "{file:./prompts/architecture.md}"
+      "prompt": "{file:./prompts/standalone/architecture.md}"
     },
     "Developer Agent": {
       "model": "openai/gpt-4o",
       "description": "Implements features based on approved plans.",
-      "prompt": "{file:./prompts/dev.md}"
+      "prompt": "{file:./prompts/standalone/dev.md}"
     },
     "Code Reviewer Agent": {
       "model": "openai/gpt-4o",
       "description": "Reviews code against standards.",
-      "prompt": "{file:./prompts/review.md}",
+      "prompt": "{file:./prompts/standalone/review.md}",
       "tools": {
         "edit": false,
         "bash": false
@@ -70,22 +68,22 @@
     "Security Engineer Agent": {
       "model": "openai/gpt-4o",
       "description": "Audits code for vulnerabilities.",
-      "prompt": "{file:./prompts/security.md}"
+      "prompt": "{file:./prompts/standalone/security.md}"
     },
     "DevOps Engineer Agent": {
       "model": "openai/gpt-4o",
       "description": "Manages environment and pipelines.",
-      "prompt": "{file:./prompts/devops.md}"
+      "prompt": "{file:./prompts/standalone/devops.md}"
     },
     "QA Engineer Agent": {
       "model": "openai/gpt-4o",
       "description": "Generates and runs E2E tests.",
-      "prompt": "{file:./prompts/qa.md}"
+      "prompt": "{file:./prompts/standalone/qa.md}"
     },
     "Project Manager Agent": {
       "model": "openai/gpt-4o",
       "description": "Tracks status, syncs governance, and manages releases.",
-      "prompt": "{file:./prompts/pm.md}"
+      "prompt": "{file:./prompts/standalone/pm.md}"
     }
   }
 }
