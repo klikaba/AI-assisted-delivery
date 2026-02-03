@@ -1,0 +1,25 @@
+{
+  "name": "agency-platform",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "agency": "node scripts/agency.js",
+    "agency:mcp": "node scripts/agency-mcp.js",
+    "agency:cli": "node scripts/agency-cli.js",
+    "doctor": "node scripts/doctor.js",
+    "doctor:live": "AGENCY_DOCTOR_LIVE=1 node scripts/doctor.js",
+    "sim:planning": "node scripts/simulate/planning.js --json",
+    "sim:pm-sync": "node scripts/simulate/pm-sync.js --json",
+    "sim:dev-complete": "node scripts/simulate/dev-complete.js --json",
+    "sim:qa-pass": "node scripts/simulate/qa-verify.js --pass --json",
+    "sim:review-pass": "node scripts/simulate/review.js --pass --json",
+    "sim:security-pass": "node scripts/simulate/security-audit.js --pass --json",
+    "sim:release": "node scripts/simulate/release.js --json",
+    "sim:scm-pr": "node scripts/simulate/scm-pr.js --json",
+    "sim:trace-planning": "AGENCY_TRACE=1 node scripts/simulate/planning.js --execute --json",
+    "test:update-traces": "node scripts/update-traces.js",
+    "live-e2e": "node scripts/live-e2e/run.js",
+    "lint:prompts": "node scripts/prompt-lint.js",
+    "test": "node --test test/*.test.js"
+  }
+}

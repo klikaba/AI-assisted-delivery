@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AGENCY_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Allow calling from anywhere; default host root to the containing git repo root
+# (or current directory if not in git).
+detect_host_root() {
+  local root
+  if root=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) && [ -n "${root}" ]; then
+    printf "%s" "$root"
+    return 0
+  fi
+  printf "%s" "$PWD"
+}
+
+HOST_ROOT="$(detect_host_root)"
+
+export AGENCY_HOST_ROOT="${AGENCY_HOST_ROOT:-$HOST_ROOT}"
+
+exec node "$AGENCY_ROOT/scripts/agency-cli.js" "$@"
+
