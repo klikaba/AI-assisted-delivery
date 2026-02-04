@@ -1,5 +1,20 @@
 # Release Notes
 
+## 0.6.0
+
+Portability and adoption release (docs provider defaults + Linear tracker support).
+
+Highlights:
+
+- Docs are now vendor-optional and portable by default:
+  - Default `docs.provider="repo"` writes specs as Markdown under `docs/agency/`
+  - Confluence remains available via `docs.provider="atlassian"`
+- New Linear tracker mode (`tracker.mode="linear"`) via Linear GraphQL API.
+- New capability introspection tool: `capabilities.get`.
+- Improved onboarding and guardrails:
+  - `agency labels` prints required `ai-state:*` workflow labels
+  - Linear live doctor checks verify required labels exist (verify-only; no auto-creation)
+
 ## 0.5.0
 
 Stabilization release for real team usage across Jira + docs (Confluence optional) + GitHub.
