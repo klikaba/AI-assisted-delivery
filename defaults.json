@@ -21,6 +21,12 @@
       "mcp_url": "https://mcp.atlassian.com/v1/sse"
     }
   },
+  "docs": {
+    "provider": "repo",
+    "repo": {
+      "dir": "docs/agency"
+    }
+  },
   "scm": {
     "provider": "none"
   },

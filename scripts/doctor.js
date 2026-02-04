@@ -97,6 +97,12 @@ function main() {
     if (needsGh) failures.push('gh not found (required by this repo config: tracker.mode=github and/or scm.provider=github)');
     else notes.push('gh not found (required if you enable GitHub tracker mode and/or GitHub SCM)');
   }
+  if (hostResolvedMode === 'linear') {
+    const hasLinearToken = Boolean(process.env.LINEAR_ACCESS_TOKEN || process.env.LINEAR_API_KEY);
+    if (!hasLinearToken) {
+      notes.push('LINEAR_API_KEY (or LINEAR_ACCESS_TOKEN) not set (required when tracker.mode=linear)');
+    }
+  }
 
   // 2) Prompt lint (must pass).
   {
@@ -111,7 +117,7 @@ function main() {
   }
 
   // 4) Generation + memory smoke tests per mode using a temp host root.
-  for (const mode of ['atlassian', 'github', 'standalone']) {
+  for (const mode of ['atlassian', 'github', 'linear', 'standalone']) {
     const hostRoot = mkTempHost();
     writeJson(path.join(hostRoot, '.agency-project.json'), {
       version: '1.0',

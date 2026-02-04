@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 This project follows Semantic Versioning (SemVer) with the caveat that `0.x` releases may include breaking changes between minor versions.
 
+## 0.6.0 - 2026-02-04
+
+- Add Linear tracker integration (`tracker.mode = "linear"`) via Linear GraphQL API.
+- Add repo-backed docs provider (`docs.provider = "repo"`, default) writing specs as Markdown under `docs.repo.dir`.
+- Add capability introspection tool: `capabilities.get`.
+- Improve spec linking conventions (`Spec: <id> <url>`) with legacy parsing support.
+- Improve onboarding and live checks (Linear label verification, `agency labels` helper).
+
 ## 0.5.0 - 2026-02-03
 
 - Add stable, vendor-agnostic capability tools via local Agency MCP: `tracker.*`, `docs.*`, `scm.*`.

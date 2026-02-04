@@ -41,6 +41,21 @@ function selectBackend(kind, mode, config) {
     if (provider === 'github') return 'github';
     return String(provider);
   }
+
+  if (kind === 'docs') {
+    const provider = config?.docs?.provider;
+    if (provider === 'none') return 'none';
+    if (provider === 'repo') return 'repo';
+    if (provider === 'atlassian') return 'atlassian';
+    if (provider) return String(provider);
+
+    // Default: repo-backed docs to keep docs optional and portable.
+    // Preserve legacy deterministic behavior in standalone mode unless explicitly configured.
+    if (mode === 'standalone') return 'fake';
+    return 'repo';
+  }
+
+  if (mode === 'linear') return 'linear';
   if (mode === 'github') return 'github';
   if (mode === 'standalone') return 'fake';
   return 'atlassian';
@@ -54,6 +69,10 @@ function loadBackend(kind, backendId) {
     // eslint-disable-next-line global-require
     return require('./backends/fake');
   }
+  if (backendId === 'repo') {
+    // eslint-disable-next-line global-require
+    return require('./backends/repo');
+  }
   if (backendId === 'github') {
     // eslint-disable-next-line global-require
     return require('./backends/github');
@@ -61,6 +80,10 @@ function loadBackend(kind, backendId) {
   if (backendId === 'atlassian') {
     // eslint-disable-next-line global-require
     return require('./backends/atlassian');
+  }
+  if (backendId === 'linear') {
+    // eslint-disable-next-line global-require
+    return require('./backends/linear');
   }
   throw new Error(`Unknown backend "${backendId}" for kind="${kind}"`);
 }

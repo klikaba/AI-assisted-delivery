@@ -3,7 +3,7 @@
  * Simulated PM "Governance Sync" flow (deterministic, no model calls).
  *
  * For each ticket in plan-review:
- * - Find the linked spec (expects a comment like "Confluence Spec: <url>")
+ * - Find the linked spec (expects a comment like "Spec: <id> <url>" or legacy "Confluence Spec: <url>")
  * - Read the spec status via docs.get
  * - Update labels:
  *   - APPROVED -> approved
@@ -39,12 +39,30 @@ Options:
 function extractSpecIdFromComments(comments) {
   for (const c of comments || []) {
     const s = String(c);
+
+    // Preferred: "Spec: <id> <url>"
+    {
+      const m = /^\s*Spec:\s*([^\s]+)\b/.exec(s);
+      if (m) return m[1];
+    }
+
+    // Legacy: "Spec ID: <id>"
+    {
+      const m = /^\s*Spec ID:\s*([^\s]+)\b/i.exec(s);
+      if (m) return m[1];
+    }
+
     const idx = s.indexOf('Confluence Spec:');
     if (idx === -1) continue;
-    const url = s.slice(idx + 'Confluence Spec:'.length).trim();
+    const ref = s.slice(idx + 'Confluence Spec:'.length).trim();
+
     // Fake backend uses https://fake.local/docs/<id>
-    const m = /\/docs\/([^/\s]+)/.exec(url);
-    if (m) return m[1];
+    const fake = /\/docs\/([^/\s]+)/.exec(ref);
+    if (fake) return fake[1];
+
+    // Repo backend uses a file-ish URL like docs/agency/<id>.md
+    const md = /(?:^|\/)([^/\s]+)\.md\b/.exec(ref);
+    if (md) return md[1];
   }
   return null;
 }
@@ -76,10 +94,10 @@ async function main() {
   const mode = config?.tracker?.mode || 'standalone';
   const labels = labelNames(mode);
 
-  const trackerBackendId = selectBackend('tracker', mode);
+  const trackerBackendId = selectBackend('tracker', mode, config);
   const tracker = loadBackend('tracker', trackerBackendId);
 
-  const docsBackendId = selectBackend('docs', mode);
+  const docsBackendId = selectBackend('docs', mode, config);
   const docs = loadBackend('docs', docsBackendId);
 
   trace.push({ op: 'tracker.search', args: { labels: [labels.planReview] } });
@@ -97,8 +115,8 @@ async function main() {
     if (!specId) {
       decisions.push({ id: item.id, key: item.key, decision: 'no-spec', specStatus: null });
       if (args.execute) {
-        trace.push({ op: 'tracker.comment', args: { id: item.id, body: 'No Confluence Spec link found; leaving in plan-review.' } });
-        await tracker.tracker.comment({ id: item.id, body: 'No Confluence Spec link found; leaving in plan-review.' });
+        trace.push({ op: 'tracker.comment', args: { id: item.id, body: 'No Spec link found; leaving in plan-review.' } });
+        await tracker.tracker.comment({ id: item.id, body: 'No Spec link found; leaving in plan-review.' });
       }
       continue;
     }

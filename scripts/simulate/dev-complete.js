@@ -52,7 +52,7 @@ async function main() {
   const mode = config?.tracker?.mode || 'standalone';
   const labels = labelNames(mode);
 
-  const backendId = selectBackend('tracker', mode);
+  const backendId = selectBackend('tracker', mode, config);
   const backend = loadBackend('tracker', backendId);
 
   trace.push({ op: 'tracker.search', args: { labels: [labels.approved] } });

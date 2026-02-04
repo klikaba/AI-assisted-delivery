@@ -116,6 +116,17 @@ function loadEnvOverrides() {
     overrides.tooling.lint_command = env.AGENCY_LINT_COMMAND;
   }
 
+  if (env.AGENCY_DOCS_PROVIDER) {
+    overrides.docs = overrides.docs || {};
+    overrides.docs.provider = env.AGENCY_DOCS_PROVIDER;
+  }
+
+  if (env.AGENCY_DOCS_DIR) {
+    overrides.docs = overrides.docs || {};
+    overrides.docs.repo = overrides.docs.repo || {};
+    overrides.docs.repo.dir = env.AGENCY_DOCS_DIR;
+  }
+
   return overrides;
 }
 
@@ -177,8 +188,8 @@ function validateConfig(config) {
   // Check tracker mode
   if (!config.tracker?.mode) {
     errors.push('tracker.mode is required');
-  } else if (!['atlassian', 'github', 'standalone'].includes(config.tracker.mode)) {
-    errors.push('tracker.mode must be one of: atlassian, github, standalone');
+  } else if (!['atlassian', 'github', 'linear', 'standalone'].includes(config.tracker.mode)) {
+    errors.push('tracker.mode must be one of: atlassian, github, linear, standalone');
   }
 
   // Atlassian backend selection (optional; defaults to api)
@@ -202,6 +213,26 @@ function validateConfig(config) {
     const p = String(config.scm.provider);
     if (!['none', 'github'].includes(p)) {
       errors.push('scm.provider must be one of: none, github');
+    }
+  }
+
+  // Docs provider (optional; default is repo)
+  if (config.docs?.provider !== undefined) {
+    const p = String(config.docs.provider);
+    if (!['none', 'repo', 'atlassian'].includes(p)) {
+      errors.push('docs.provider must be one of: none, repo, atlassian');
+    }
+    if (p === 'repo') {
+      const dir = config.docs?.repo?.dir;
+      if (dir !== undefined) {
+        const s = String(dir);
+        const normalized = path.normalize(s);
+        const parts = normalized.split(path.sep).filter(Boolean);
+        const escapes = parts.includes('..') || normalized.startsWith(`..${path.sep}`) || normalized === '..';
+        if (!s.trim() || path.isAbsolute(s) || escapes) {
+          errors.push('docs.repo.dir must be a non-empty relative path within the host repo when docs.provider is "repo"');
+        }
+      }
     }
   }
 
@@ -398,6 +429,8 @@ Environment Variables:
   AGENCY_TRACKER_MODE     Override tracker mode (atlassian/github/standalone)
   AGENCY_TEST_COMMAND     Override test command
   AGENCY_LINT_COMMAND     Override lint command
+  AGENCY_DOCS_PROVIDER    Override docs provider (none/repo/atlassian)
+  AGENCY_DOCS_DIR         Override repo docs dir (relative to host root)
 `);
 }
 

@@ -130,7 +130,7 @@ function main() {
   const agencyPath = path.join(hostRoot, '.agency');
   safeSymlink(repoRoot(), agencyPath);
 
-  // Minimal host config. We keep Jira/Confluence mode but use the fake backend.
+  // Minimal host config. We keep Atlassian tracker mode but use the fake backend.
   writeJson(path.join(hostRoot, '.agency-project.json'), {
     version: '1.0',
     tracker: { mode: 'atlassian' },

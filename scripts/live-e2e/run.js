@@ -99,7 +99,7 @@ function main() {
   runAgency(['tracker', 'comment', '--id', String(item.id), '--body', `Agency Live E2E check (${new Date().toISOString()})`, '--json']);
   process.stdout.write('Posted canary comment.\n');
 
-  // For Atlassian, also create a draft Confluence page.
+  // For Atlassian + Confluence docs provider, also create a draft Confluence page.
   if (mode === 'atlassian') {
     const doc = runAgency(['docs', 'create', '--title', `Agency Live E2E (${new Date().toISOString()})`, '--body', 'Canary page', '--status', 'DRAFT', '--json']);
     process.stdout.write(`Created Confluence page id=${doc.page?.id || '(none)'}\n`);
@@ -111,4 +111,3 @@ try {
 } catch (err) {
   die(err && err.message ? err.message : String(err));
 }
-

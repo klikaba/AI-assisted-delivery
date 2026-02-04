@@ -45,14 +45,14 @@ test('pm sync: moves plan-review based on spec status', () => {
           key: 'ABC-10',
           title: 'Approved ticket',
           labels: ['ai-state:plan-review'],
-          comments: ['Confluence Spec: https://fake.local/docs/page-aaa']
+          comments: ['Spec: page-aaa https://fake.local/docs/page-aaa']
         },
         {
           id: 'ABC-11',
           key: 'ABC-11',
           title: 'Changes ticket',
           labels: ['ai-state:plan-review'],
-          comments: ['Confluence Spec: https://fake.local/docs/page-bbb']
+          comments: ['Spec: page-bbb https://fake.local/docs/page-bbb']
         }
       ]
     },
@@ -74,4 +74,3 @@ test('pm sync: moves plan-review based on spec status', () => {
   assert.deepEqual(byId['ABC-10'].labels.sort(), ['ai-state:approved']);
   assert.deepEqual(byId['ABC-11'].labels.sort(), ['ai-state:ready-for-plan']);
 });
-

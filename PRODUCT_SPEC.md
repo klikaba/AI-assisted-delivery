@@ -21,7 +21,7 @@ It is **controlled automation**, designed for enterprises operating under regula
 
 The Enterprise Agentic Delivery Platform is a **portable, role-based Agentic SDLC** distributed as a **Git submodule** that can be installed into any existing repository.
 
-It acts as an **automation and orchestration layer** over existing enterprise tools—Jira, Confluence, Git, CI/CD—enforcing governance rules while enabling AI-driven execution.
+It acts as an **automation and orchestration layer** over existing enterprise tools—issue trackers, docs systems, Git/SCM, CI/CD—enforcing governance rules while enabling AI-driven execution.
 
 ### Core Design Principles
 
@@ -39,7 +39,7 @@ It acts as an **automation and orchestration layer** over existing enterprise to
 flowchart LR
     A[Jira Issue Created] --> B[Product Owner Agent]
     B --> C[Planning Agent]
-    C --> D[Confluence Spec]
+    C --> D["Spec (Docs Provider)"]
     D -->|Human Approval| E[Architecture Agent]
     E --> F[Developer Agent]
     F --> G[Code Review Agent]
@@ -75,14 +75,14 @@ The platform includes **nine bounded, role-specific agents**, each aligned to a 
 
 * Translates approved requirements into:
 
-  * Confluence specifications
+  * Specifications (via docs provider)
   * Structured JSON implementation plans
 * Performs technical reconnaissance of the repository (`ls -R`)
 * Identifies dependencies, risks, and assumptions
 * Defines explicit acceptance criteria
 * **Intelligent Reconnaissance**: Understands codebase structure before planning
 * **Interactive Protocol**: Waits for human approval before generating specs
-* **Atomic Operations**: Creates complete Confluence specs with proper metadata
+* **Atomic Operations**: Creates complete specs with proper metadata
 
 ---
 
@@ -93,8 +93,8 @@ The platform includes **nine bounded, role-specific agents**, each aligned to a 
 * Documents architectural trade-offs (ADRs)
 * Evaluates scalability, performance, and security implications
 * Aligns with enterprise architecture standards
-* **Context Integration**: Enhances existing Confluence specs with technical designs
-* **Interactive Protocol**: Pauses for approval before updating Confluence pages
+* **Context Integration**: Enhances existing specs with technical designs
+* **Interactive Protocol**: Pauses for approval before updating specs
 
 ---
 
@@ -106,7 +106,7 @@ The platform includes **nine bounded, role-specific agents**, each aligned to a 
 * Produces deterministic, reviewable commits
 * Cannot introduce new scope or architectural changes
 * **Interactive Protocol**: Lists files to be modified and waits for approval
-* **Safety Checks**: Performs dual-key verification (Jira + Confluence) before any code changes
+* **Safety Checks**: Performs dual-key verification (tracker + docs) before any code changes
 * **Fail-Safe Mechanism**: If linting fails twice, reverts files to original state
 * **Commit Protocol**: Prefixes all commits with Jira ticket ID for traceability
 * **Context Awareness**: Follows repository-specific branching and coding conventions
@@ -169,7 +169,7 @@ The platform includes **nine bounded, role-specific agents**, each aligned to a 
 
 ### Project Manager Agent
 
-* Synchronizes Jira and Confluence state
+* Synchronizes tracker and spec state
 * Tracks delivery progress
 * Manages releases and documentation
 * Generates stakeholder-facing status reports
@@ -177,7 +177,7 @@ The platform includes **nine bounded, role-specific agents**, each aligned to a 
 * **Dual Mode Operation**: Operates in Governance Sync or Release mode based on needs
 * **Interactive Protocol**: Offers mode selection and waits for human direction
 * **Release Gate**: Verifies all required labels before allowing release
-* **State Synchronization**: Maintains consistency between Jira and Confluence
+* **State Synchronization**: Maintains consistency between tracker and docs
 
 ---
 
@@ -188,7 +188,7 @@ The platform includes **nine bounded, role-specific agents**, each aligned to a 
 AI execution is permitted **only when both conditions are met**:
 
 * **Jira**: Issue labeled `ai-state:approved`
-* **Confluence**: Specification marked `Spec Status: APPROVED`
+* **Docs Provider**: Specification marked `Spec Status: APPROVED`
 
 This ensures:
 
@@ -309,7 +309,7 @@ The platform **supports** compliance efforts by providing:
 
 * Git (version control)
 * Jira (work tracking)
-* Confluence (specification & approvals)
+* Docs provider (specification & approvals)
 * OpenCode (agent orchestration)
 
 ### Optional
