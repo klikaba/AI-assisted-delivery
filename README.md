@@ -7,6 +7,20 @@ This repository provides a portable, role-based Agentic SDLC configuration desig
 Release notes: `RELEASE_NOTES.md`
 Changelog: `CHANGELOG.md`
 
+## Current State (What Works Today)
+
+- **Tracker backends:** Atlassian (Jira), GitHub Issues, Linear, Standalone (fake/offline).
+- **Docs providers (optional):** repo-backed Markdown (`docs.provider="repo"`, default), Atlassian (Confluence), or disabled (`none`).
+- **SCM providers:** GitHub PR workflow via `gh` (optional) or disabled (`none`).
+- **Stable capability tools for agents:** `tracker.*`, `docs.*`, `scm.*` via local Agency MCP.
+- **Deterministic conformance:** simulations + trace snapshots for regression protection.
+
+## What Needs To Happen Next
+
+- Add more adapters: other trackers (e.g. more SaaS/on‑prem) and SCMs (GitLab/Bitbucket).
+- Improve day-to-day team UX: “what’s next”/queue views and more structured linking of Spec/Plan/PR evidence.
+- Harden governance/evidence: make gates and required artifacts more machine-verifiable across providers.
+
 ## Quickstart (Teams)
 
 From your host repository root:
@@ -15,7 +29,7 @@ From your host repository root:
 git submodule add <THIS_REPO_URL> .agency
 git submodule update --init --recursive
 
-./.agency/bin/agency init --mode atlassian
+./.agency/bin/agency init --mode atlassian  # or: github | linear | standalone
 git add .agency-project.json .agency-rules.md .gitignore
 git commit -m "chore: configure .agency"
 
@@ -27,8 +41,16 @@ If you get stuck, run: `./.agency/bin/agency doctor`
 ## What This Is
 
 - A set of governed SDLC agent prompts (Product, Planning, Architecture, Dev, QA, Review, Security, DevOps, PM).
-- A portable workflow contract built on Jira labels (`ai-state:*`) plus optional Jira status transitions.
+- A portable workflow contract built on `ai-state:*` labels plus optional status transitions (best-effort).
 - A lightweight context engine that merges shared rules + repo rules + local runtime memory.
+
+## How This Is Meant To Be Used (Mental Model)
+
+This repo is not an “agent that runs your SDLC automatically”. It’s a **portable workflow contract + adapters**:
+
+1. Your team uses an issue tracker (Jira/GitHub/Linear) as the system of record for work.
+2. Agents interact with that system through stable tools (`tracker.*`, `docs.*`, `scm.*`) instead of vendor-specific APIs.
+3. Work progresses through a label-driven state machine (`ai-state:*`) and a human-controlled spec approval gate (`Spec Status`).
 
 ## Install
 
@@ -105,12 +127,13 @@ If `setup.sh` reports missing tools, you can still run setup and install the mis
 - `.agency/opencode.template.json`: reference for generated opencode.jsonc structure.
 - `.agency/prompts/`: agent prompts (Atlassian mode).
 - `.agency/prompts/github/`: agent prompts (GitHub mode).
+- `.agency/prompts/linear/`: agent prompts (Linear mode).
 - `.agency/prompts/standalone/`: agent prompts (standalone mode).
 - `.agency/rules.md`: shared/global rules.
-- `.agency/bin/agency`: team-friendly CLI (`init`, `generate`, `doctor`, `test --profile`).
+- `.agency/bin/agency`: team-friendly CLI (`init`, `generate`, `doctor`, `labels`, `test --profile`).
 - `.agency/scripts/config.js`: configuration engine.
 - `.agency/scripts/memory.js`: context engine.
-- `.agency/scripts/agency-mcp.js`: local MCP server exposing stable capability tools (`tracker.*`, `docs.*`).
+- `.agency/scripts/agency-mcp.js`: local MCP server exposing stable capability tools (`tracker.*`, `docs.*`, `capabilities.get`).
 - `.agency/scripts/agency.js`: integration CLI (debugging/manual use; same capability surface).
 - `.agency/setup.sh`: setup wizard.
 
@@ -170,15 +193,29 @@ The platform uses a layered configuration system that merges settings from multi
 
 ### Tracker Modes
 
-- `atlassian` - Jira + Confluence integration (default). Uses Atlassian Cloud REST APIs behind the Agency tools by default.
+- `atlassian` - Jira integration (default). Uses Atlassian Cloud REST APIs behind the Agency tools by default.
 - `github` - GitHub Issues workflow. Uses `gh` behind the Agency tools.
+- `linear` - Linear Issues workflow. Uses Linear GraphQL API behind the Agency tools.
 - `standalone` - No external tracker; workflows can run offline using the fake backend for testing.
+
+### Linear Setup Notes
+
+Linear mode uses `ai-state:*` labels for the portable workflow. Create the `ai-state:*` labels in Linear (Workspace Settings → Labels) before running the flow (doctor live checks verify they exist). You can print the list with `./.agency/bin/agency labels --mode linear`.
+
+### Docs Providers (Optional)
+
+Docs are a separate, vendor-agnostic capability surface (`docs.*`).
+
+- `repo` (default) - Writes specs/pages as Markdown files under `docs.repo.dir` in the host repo.
+- `atlassian` - Uses Confluence pages via the Atlassian backend (requires Confluence env vars).
+- `none` - Disables `docs.*` tools.
 
 ### Jira + GitHub Together (Recommended)
 
 Most teams use:
 
-- Jira/Confluence as the system of record for work and specs: `tracker.*`, `docs.*`
+- Atlassian (Jira) as the system of record for work: `tracker.*`
+- A docs provider for specs/approvals: `docs.*` (default is `repo`; optional `atlassian` for Confluence)
 - GitHub for PR workflow: `scm.*` (via `gh`)
 
 Configure that per-repo with:
@@ -195,7 +232,7 @@ Configure that per-repo with:
 
 Atlassian supports two backend modes:
 
-- `tracker.atlassian.backend = "api"` (default): uses Jira/Confluence REST APIs.
+- `tracker.atlassian.backend = "api"` (default): uses Jira REST APIs.
 - `tracker.atlassian.backend = "mcp"`: uses `mcp-remote` with `tracker.atlassian.mcp_url`.
 
 ### Configuration CLI
@@ -217,6 +254,8 @@ node .agency/scripts/config.js --generate
 - `AGENCY_TRACKER_MODE` - Override tracker mode
 - `AGENCY_TEST_COMMAND` - Override test command
 - `AGENCY_LINT_COMMAND` - Override lint command
+- `AGENCY_DOCS_PROVIDER` - Override docs provider (none/repo/atlassian)
+- `AGENCY_DOCS_DIR` - Override repo docs dir (relative to host root)
 
 ## Context Engine
 
@@ -293,7 +332,7 @@ Agent-run E2E (OpenCode smoke test):
 
 - `npm run e2e:agent` (requires OpenCode installed + model/provider access; uses fake backend; gated)
 
-## Jira Workflow Contract
+## Workflow Contract (Portable)
 
 Portable state machine (labels):
 
@@ -305,16 +344,36 @@ Portable state machine (labels):
 - `ai-state:reviewed` / `ai-state:review-fail`
 - `ai-state:security-pass` / `ai-state:security-fail`
 
-Jira status transitions are treated as best-effort. Jira status names differ across projects; the prompts prioritize labels as the portable mechanism.
+Status transitions are treated as best-effort. Status names differ across projects; the prompts prioritize labels as the portable mechanism.
 
-## Basic Usage
+### Required Labels (Preflight)
 
-1. Initialize: `./.agency/bin/agency init --mode atlassian`
+- Print the canonical list: `./.agency/bin/agency labels --mode <atlassian|github|linear|standalone>`
+- Jira: labels are free-form (no pre-creation required).
+- GitHub + Linear: labels must exist before they can be applied.
+
+## Basic Usage (Day-to-Day)
+
+1. Initialize: `./.agency/bin/agency init --mode <atlassian|github|linear|standalone>`
 2. Commit host config: `git add .agency-project.json .agency-rules.md .gitignore && git commit`
 3. Start OpenCode: `opencode .`
 4. Choose an agent (e.g. Product Owner, Planning, Developer).
-5. Use Jira labels (`ai-state:*`) to move issues through the workflow.
-6. Use Confluence `Spec Status` as the human approval gate.
+5. Use `ai-state:*` labels to move issues through the workflow.
+6. Use `Spec Status` (via your configured docs provider) as the human approval gate.
+
+### Recommended First Ticket Walkthrough
+
+1. Pick an issue/ticket and add label `ai-state:ready-for-plan`.
+2. Run the **Planning Agent**:
+   - Creates a Spec (`docs.create`, `Spec Status: DRAFT`)
+   - Comments on the ticket with a Spec reference (prefer `Spec: <id> <url>`)
+   - Posts the JSON plan as a comment
+   - Moves label to `ai-state:plan-review`
+3. Human review: update `Spec Status` to `APPROVED` (or `CHANGES REQUESTED`).
+4. Run **PM (Governance Sync)** to sync `Spec Status` back to ticket labels:
+   - `APPROVED` -> `ai-state:approved`
+   - `CHANGES REQUESTED` -> `ai-state:ready-for-plan`
+5. Run **Developer Agent**, then **QA**, then **Review/Security**, then **PM Release**.
 
 ## Migration From <= 0.3.x
 
@@ -322,15 +381,17 @@ Earlier versions nested everything under an internal `.agency/` directory. As of
 
 If you previously copied a folder instead of using a submodule, remove the old directory and install as a submodule.
 
-## Confluence Workflow Contract
+## Spec Workflow Contract (Docs)
 
-- Planning generates a spec page that includes a Page Properties table with `Spec Status: DRAFT`.
-- Human reviewers update that property to `APPROVED` to open the governance gate.
+- Planning generates a spec that includes `Spec Status: DRAFT` (encoding depends on docs provider).
+- Human reviewers update `Spec Status` to `APPROVED` (or `CHANGES REQUESTED`) to open/close the governance gate.
 
 ## Environment
 
 This repo includes `.env.example` as a safe starting point. In your host repo you typically create a `.env` (gitignored) with any required environment variables (e.g. Confluence space key).
 
-Common variable:
+Common variables:
 
-- `CONFLUENCE_SPACE_KEY` (example default in `.env.example`)
+- Atlassian (Jira REST): `ATLASSIAN_SITE`, `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN`
+- Confluence docs provider (only when `docs.provider="atlassian"`): `CONFLUENCE_SPACE_KEY` (and optionally `CONFLUENCE_BASE_URL`)
+- Linear tracker: `LINEAR_API_KEY` (or `LINEAR_ACCESS_TOKEN`)

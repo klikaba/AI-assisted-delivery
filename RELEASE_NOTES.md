@@ -2,7 +2,7 @@
 
 ## 0.5.0
 
-Stabilization release for real team usage across Jira/Confluence + GitHub.
+Stabilization release for real team usage across Jira + docs (Confluence optional) + GitHub.
 
 Highlights:
 

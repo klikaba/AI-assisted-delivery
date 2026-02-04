@@ -80,9 +80,9 @@ async function main() {
   const mode = config?.tracker?.mode || 'standalone';
   const labels = labelNames(mode);
 
-  const trackerId = selectBackend('tracker', mode);
+  const trackerId = selectBackend('tracker', mode, config);
   const tracker = loadBackend('tracker', trackerId);
-  const docsId = selectBackend('docs', mode);
+  const docsId = selectBackend('docs', mode, config);
   const docs = loadBackend('docs', docsId);
 
   trace.push({ op: 'tracker.search', args: { labels: [labels.verified, labels.reviewed, labels.securityPass] } });

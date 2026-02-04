@@ -49,6 +49,49 @@ function htmlEscape(s) {
     .replaceAll("'", '&#39;');
 }
 
+function normalizeSpecStatus(status) {
+  if (status === undefined || status === null || status === '') return 'DRAFT';
+  return String(status).toUpperCase();
+}
+
+function extractSpecStatusFromStorage(html) {
+  const raw = String(html || '');
+  // We intentionally keep this permissive: users may format it as plain text,
+  // bold text, or inside a table.
+  //
+  // Examples:
+  // - Spec Status: APPROVED
+  // - <strong>Spec Status:</strong> APPROVED
+  const m = /Spec\s*Status\s*:(?:\s|<[^>]+>)*([A-Z][A-Z _-]{0,48})/i.exec(raw);
+  if (!m) return null;
+  return normalizeSpecStatus(m[1]);
+}
+
+function renderStorageHtml({ body, specStatus }) {
+  const status = normalizeSpecStatus(specStatus);
+  const statusHtml = `<p><strong>Spec Status:</strong> ${htmlEscape(status)}</p>`;
+  const contentHtml = String(body || '').includes('\n')
+    ? `<pre>${htmlEscape(body)}</pre>`
+    : `<p>${htmlEscape(body)}</p>`;
+  return `${statusHtml}\n${contentHtml}`;
+}
+
+function updateSpecStatusInStorage(existingHtml, specStatus) {
+  const status = normalizeSpecStatus(specStatus);
+  const statusHtml = `<p><strong>Spec Status:</strong> ${htmlEscape(status)}</p>`;
+  const raw = String(existingHtml || '');
+
+  // Replace in common cases.
+  const replaced = raw.replace(
+    /(Spec\s*Status\s*:(?:\s|<[^>]+>)*)([A-Za-z][A-Za-z _-]{0,48})/i,
+    (_, prefix) => `${prefix}${status}`
+  );
+  if (replaced !== raw) return replaced;
+
+  // Otherwise prepend.
+  return `${statusHtml}\n${raw}`;
+}
+
 function toAdfTextDoc(text) {
   // Minimal Atlassian Document Format wrapper for plain text.
   return {
@@ -268,10 +311,9 @@ async function docs_create({ title, body, status, parentId }) {
   const { confluenceBase } = getAtlassianBases();
   const spaceKey = requireEnv('CONFLUENCE_SPACE_KEY');
 
-  const confluenceStatus = String(status || '').toUpperCase() === 'DRAFT' ? 'draft' : 'current';
-  const htmlBody = body.includes('\n')
-    ? `<pre>${htmlEscape(body)}</pre>`
-    : `<p>${htmlEscape(body)}</p>`;
+  const specStatus = normalizeSpecStatus(status);
+  const confluenceStatus = specStatus === 'DRAFT' ? 'draft' : 'current';
+  const htmlBody = renderStorageHtml({ body, specStatus });
 
   const payload = {
     type: 'page',
@@ -301,8 +343,8 @@ async function docs_create({ title, body, status, parentId }) {
     page: {
       id: pageId,
       title: data.title || '',
-      body: body || '',
-      status: confluenceStatus.toUpperCase(),
+      body: htmlBody,
+      status: specStatus,
       parentId: parentId ? String(parentId) : null,
       url: data._links?.base && data._links?.webui ? `${data._links.base}${data._links.webui}` : null
     }
@@ -315,12 +357,16 @@ async function docs_get({ id }) {
     `${confluenceBase}/rest/api/content/${encodeURIComponent(String(id))}?expand=body.storage,version,_links`
   );
 
+  const storage = data.body?.storage?.value || '';
+  const specStatus = extractSpecStatusFromStorage(storage);
+  const fallback = String(data.status || '').toUpperCase();
+
   return {
     page: {
       id: String(data.id),
       title: data.title || '',
-      body: data.body?.storage?.value || '',
-      status: (data.status || '').toUpperCase(),
+      body: storage,
+      status: specStatus || (fallback === 'DRAFT' ? 'DRAFT' : 'UNKNOWN'),
       parentId: null,
       url: data._links?.base && data._links?.webui ? `${data._links.base}${data._links.webui}` : null,
       _version: data.version?.number
@@ -333,16 +379,12 @@ async function docs_update({ id, title, body, status }) {
   const existing = await docs_get({ id });
   const currentVersion = Number(existing.page._version || 1);
 
-  const confluenceStatus =
-    status !== undefined && String(status).toUpperCase() === 'DRAFT'
-      ? 'draft'
-      : status !== undefined
-        ? 'current'
-        : String(existing.page.status || '').toLowerCase() || 'current';
-
+  const nextSpecStatus = status !== undefined ? normalizeSpecStatus(status) : normalizeSpecStatus(existing.page.status);
+  const confluenceStatus = nextSpecStatus === 'DRAFT' ? 'draft' : 'current';
+  const rawBody = body !== undefined ? String(body) : null;
   const htmlBody = body !== undefined
-    ? (String(body).includes('\n') ? `<pre>${htmlEscape(body)}</pre>` : `<p>${htmlEscape(body)}</p>`)
-    : existing.page.body;
+    ? renderStorageHtml({ body: rawBody, specStatus: nextSpecStatus })
+    : updateSpecStatusInStorage(existing.page.body, nextSpecStatus);
 
   const payload = {
     id: String(id),
@@ -368,8 +410,8 @@ async function docs_update({ id, title, body, status }) {
     page: {
       id: String(data.id),
       title: data.title || '',
-      body: body !== undefined ? String(body) : existing.page.body,
-      status: (data.status || '').toUpperCase(),
+      body: htmlBody,
+      status: nextSpecStatus,
       parentId: null,
       url: data._links?.base && data._links?.webui ? `${data._links.base}${data._links.webui}` : null
     }

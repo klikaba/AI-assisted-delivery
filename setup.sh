@@ -132,15 +132,16 @@ if [ "$CREATE_CONFIG" = true ]; then
   # Tracker mode with validation
   printf "  Tracker mode determines how agents interact with your issue tracker.\n"
   printf "  Options:\n"
-  printf "    atlassian  - Jira + Confluence integration (recommended)\n"
-  printf "    github     - GitHub Issues + Wiki (experimental)\n"
+  printf "    atlassian  - Jira integration (recommended; docs provider is configurable)\n"
+  printf "    github     - GitHub Issues (experimental)\n"
+  printf "    linear     - Linear issues (experimental)\n"
   printf "    standalone - Local only, no external tracker\n"
   while true; do
     read -r -p "  > Tracker mode [atlassian]: " tracker_mode
     tracker_mode="${tracker_mode:-atlassian}"
     case "$tracker_mode" in
-      atlassian|github|standalone) break ;;
-      *) printf "  %bInvalid mode '%s'. Choose: atlassian, github, or standalone%b\n" "${RED}" "$tracker_mode" "${NC}" ;;
+      atlassian|github|linear|standalone) break ;;
+      *) printf "  %bInvalid mode '%s'. Choose: atlassian, github, linear, or standalone%b\n" "${RED}" "$tracker_mode" "${NC}" ;;
     esac
   done
 
@@ -158,7 +159,7 @@ if [ "$CREATE_CONFIG" = true ]; then
   lint_cmd_escaped=$(printf '%s' "$lint_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')
 
   # By default, enable GitHub PR integration for non-standalone repos.
-  # This keeps Jira/Confluence as the system of record while still enabling `scm.*` tools via `gh`.
+  # This keeps the tracker as the system of record while still enabling `scm.*` tools via `gh`.
   scm_provider="none"
   if [ "$tracker_mode" != "standalone" ]; then
     scm_provider="github"
@@ -189,7 +190,7 @@ EOF
     printf "    ATLASSIAN_SITE - https://<your-domain>.atlassian.net\n"
     printf "    ATLASSIAN_EMAIL - Your Atlassian account email\n"
     printf "    ATLASSIAN_API_TOKEN - Atlassian API token\n"
-    printf "    CONFLUENCE_SPACE_KEY - Your Confluence space key (e.g., ENG)\n"
+    printf "    (If docs.provider=atlassian) CONFLUENCE_SPACE_KEY - Your Confluence space key (e.g., ENG)\n"
     printf "  See .env.example for details.\n"
   elif [ "$tracker_mode" = "github" ]; then
     printf "\n"
@@ -200,6 +201,11 @@ EOF
       printf "    Install with: brew install gh (macOS) or see https://cli.github.com\n"
       printf "    Then authenticate: gh auth login\n"
     fi
+  elif [ "$tracker_mode" = "linear" ]; then
+    printf "\n"
+    printf "  %bLinear mode requires an API key:%b\n" "${BLUE}" "${NC}"
+    printf "    LINEAR_API_KEY - Personal API key (see Linear settings)\n"
+    printf "  See .env.example for details.\n"
   fi
 
   # SCM guidance (GitHub PR integration)

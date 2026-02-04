@@ -40,12 +40,21 @@ test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
 
     const list = await client.request('tools/list', {});
     const tools = list.result?.tools || [];
+    assert.ok(tools.find((t) => t.name === 'capabilities.get'));
+    assert.ok(tools.find((t) => t.name === 'agency.capabilities.get'));
     assert.ok(tools.find((t) => t.name === 'tracker.search'));
     assert.ok(tools.find((t) => t.name === 'agency.tracker.search'));
     assert.ok(tools.find((t) => t.name === 'docs.create'));
     assert.ok(tools.find((t) => t.name === 'agency.docs.create'));
     assert.ok(tools.find((t) => t.name === 'scm.pr_create'));
     assert.ok(tools.find((t) => t.name === 'agency.scm.pr_create'));
+
+    const caps = await client.request('tools/call', { name: 'capabilities.get', arguments: {} });
+    const capsFirst = caps.result?.content?.[0];
+    assert.equal(capsFirst.type, 'json');
+    assert.equal(capsFirst.json.backends.tracker, 'fake');
+    assert.equal(capsFirst.json.backends.docs, 'fake');
+    assert.equal(capsFirst.json.backends.scm, 'fake');
 
     const call = await client.request('tools/call', {
       name: 'tracker.search',
@@ -127,6 +136,7 @@ test('agency mcp: newline framing compatibility (fake)', async () => {
     sendLine({ jsonrpc: '2.0', id: '2', method: 'tools/list', params: {} });
     const list = await waitFor('2');
     const tools = list.result?.tools || [];
+    assert.ok(tools.find((t) => t.name === 'capabilities.get'));
     assert.ok(tools.find((t) => t.name === 'tracker.search'));
     assert.ok(tools.find((t) => t.name === 'scm.pr_create'));
 

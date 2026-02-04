@@ -4,7 +4,7 @@
  *
  * Purpose:
  * - Provide end-to-end-ish regression tests for integration wiring and state transitions
- *   without relying on non-deterministic LLM output or live Jira/Confluence.
+ *   without relying on non-deterministic LLM output or live Jira/docs.
  *
  * Behavior:
  * - In "draft" mode (default), it only discovers tickets and prints a trace.
@@ -87,7 +87,7 @@ async function main() {
 
   const { config } = loadResolvedConfig();
   const mode = config?.tracker?.mode || 'standalone';
-  const backendId = selectBackend('tracker', mode);
+  const backendId = selectBackend('tracker', mode, config);
   const backend = loadBackend('tracker', backendId);
 
   const labelReady = mode === 'github' ? 'ready-for-plan' : 'ai-state:ready-for-plan';
@@ -132,7 +132,7 @@ async function main() {
     return;
   }
 
-  const docsBackendId = selectBackend('docs', mode);
+  const docsBackendId = selectBackend('docs', mode, config);
   const docsBackend = loadBackend('docs', docsBackendId);
 
   trace.push({ op: 'docs.create', args: { title: `Spec: ${item.key || item.id}`, status: 'DRAFT' } });
@@ -143,8 +143,9 @@ async function main() {
   });
 
   const specUrl = docRes.page?.url || '(no url)';
-  trace.push({ op: 'tracker.comment', args: { id: item.id, body: `Confluence Spec: ${specUrl}` } });
-  await backend.tracker.comment({ id: item.id, body: `Confluence Spec: ${specUrl}` });
+  const specId = docRes.page?.id || '(no id)';
+  trace.push({ op: 'tracker.comment', args: { id: item.id, body: `Spec: ${specId} ${specUrl}` } });
+  await backend.tracker.comment({ id: item.id, body: `Spec: ${specId} ${specUrl}` });
 
   trace.push({ op: 'tracker.comment', args: { id: item.id, body: '<plan json>' } });
   await backend.tracker.comment({ id: item.id, body: `Implementation Plan (JSON)\n\n${JSON.stringify(plan, null, 2)}` });

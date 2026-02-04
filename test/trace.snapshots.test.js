@@ -56,7 +56,7 @@ test('trace snapshots: planning', () => {
 test('trace snapshots: pm-sync', () => {
   const hostRoot = mkTempHost();
   buildFixtureState(hostRoot, {
-    tracker: { items: [{ id: 'ABC-10', key: 'ABC-10', title: 'Approved', labels: ['ai-state:plan-review'], comments: ['Confluence Spec: https://fake.local/docs/page-a'] }] },
+    tracker: { items: [{ id: 'ABC-10', key: 'ABC-10', title: 'Approved', labels: ['ai-state:plan-review'], comments: ['Spec: page-a https://fake.local/docs/page-a'] }] },
     docs: { pages: [{ id: 'page-a', title: 'Spec', body: 'x', status: 'APPROVED', url: 'https://fake.local/docs/page-a' }] }
   });
   const payload = runSim(path.join(repoRoot, 'scripts', 'simulate', 'pm-sync.js'), ['--execute', '--json'], hostRoot);

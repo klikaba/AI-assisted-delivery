@@ -65,6 +65,11 @@ function toolList() {
   // Minimal JSON Schemas: keep stable, don’t overfit.
   const tools = [
     {
+      name: 'capabilities.get',
+      description: 'Get the current capability surface and selected backends.',
+      inputSchema: { type: 'object', additionalProperties: false, properties: {} }
+    },
+    {
       name: 'tracker.search',
       description: 'Search tracker items by labels and/or text.',
       inputSchema: {
@@ -249,9 +254,57 @@ function normalizeCallParams(params) {
   return { name, args };
 }
 
+function hasFn(obj, name) {
+  return typeof obj?.[name] === 'function';
+}
+
+function computeCapabilities({ mode, config }) {
+  const trackerBackendId = selectBackend('tracker', mode, config);
+  const docsBackendId = selectBackend('docs', mode, config);
+  const scmBackendId = selectBackend('scm', mode, config);
+
+  const trackerBackend = loadBackend('tracker', trackerBackendId);
+  const docsBackend = loadBackend('docs', docsBackendId);
+  const scmBackend = scmBackendId === 'none' ? null : loadBackend('scm', scmBackendId);
+
+  return {
+    version: '1.0',
+    mode,
+    backends: {
+      tracker: trackerBackendId,
+      docs: docsBackendId,
+      scm: scmBackendId
+    },
+    tracker: {
+      search: hasFn(trackerBackend.tracker, 'search'),
+      get: hasFn(trackerBackend.tracker, 'get'),
+      comment: hasFn(trackerBackend.tracker, 'comment'),
+      transition: hasFn(trackerBackend.tracker, 'transition'),
+      set_labels: hasFn(trackerBackend.tracker, 'set_labels')
+    },
+    docs: {
+      create: hasFn(docsBackend.docs, 'create'),
+      get: hasFn(docsBackend.docs, 'get'),
+      update: hasFn(docsBackend.docs, 'update')
+    },
+    scm: {
+      enabled: scmBackendId !== 'none',
+      pr_create: scmBackend ? hasFn(scmBackend.scm, 'pr_create') : false,
+      pr_get: scmBackend ? hasFn(scmBackend.scm, 'pr_get') : false,
+      pr_comment: scmBackend ? hasFn(scmBackend.scm, 'pr_comment') : false,
+      pr_set_labels: scmBackend ? hasFn(scmBackend.scm, 'pr_set_labels') : false,
+      pr_link_ticket: scmBackend ? hasFn(scmBackend.scm, 'pr_link_ticket') : false
+    }
+  };
+}
+
 async function callTool(name, args) {
   const { config } = loadResolvedConfig();
   const mode = config?.tracker?.mode || 'standalone';
+
+  if (name === 'capabilities.get') {
+    return computeCapabilities({ mode, config });
+  }
 
   if (name.startsWith('tracker.')) {
     const backendId = selectBackend('tracker', mode, config);

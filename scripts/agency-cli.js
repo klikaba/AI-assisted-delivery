@@ -7,6 +7,7 @@
  * - generate: generate opencode.jsonc
  * - doctor: run sanity checks
  * - test: run conformance test suite, optionally for a profile
+ * - labels: print required workflow labels
  *
  * Notes:
  * - Uses AGENCY_HOST_ROOT to avoid mutating the .agency repo during tests.
@@ -131,7 +132,8 @@ function initHost({ mode, force }) {
   process.stdout.write(`- Ensured ${gitignorePath} has local-state ignores\n`);
   process.stdout.write(`- Generated ${path.join(root, 'opencode.jsonc')}\n`);
   if (mode === 'atlassian') {
-    process.stdout.write('Next: set ATLASSIAN_SITE/ATLASSIAN_EMAIL/ATLASSIAN_API_TOKEN/CONFLUENCE_SPACE_KEY (see .env.example)\n');
+    process.stdout.write('Next: set ATLASSIAN_SITE/ATLASSIAN_EMAIL/ATLASSIAN_API_TOKEN (see .env.example)\n');
+    process.stdout.write('      If you set docs.provider=atlassian, also set CONFLUENCE_SPACE_KEY/CONFLUENCE_BASE_URL.\n');
   }
   if (mode === 'github') {
     process.stdout.write('Next: install/authenticate gh (gh auth login)\n');
@@ -143,15 +145,49 @@ function usage() {
 agency
 
 Usage:
-  agency init [--mode atlassian|github|standalone] [--force]
+  agency init [--mode atlassian|github|linear|standalone] [--force]
   agency generate
   agency doctor
   agency test [--profile <dir>]
+  agency labels [--mode atlassian|github|linear|standalone]
 
 Notes:
   - Uses AGENCY_HOST_ROOT to decide which host repo is being configured.
   - For simulated E2E/conformance tests, pass --profile which must contain .agency-project.json.
 `);
+}
+
+function requiredAiStateLabels() {
+  return [
+    'ai-state:ready-for-plan',
+    'ai-state:plan-review',
+    'ai-state:approved',
+    'ai-state:in-qa',
+    'ai-state:verified',
+    'ai-state:reviewed',
+    'ai-state:review-fail',
+    'ai-state:security-pass',
+    'ai-state:security-fail'
+  ];
+}
+
+function printLabels({ mode }) {
+  const labels = requiredAiStateLabels();
+  process.stdout.write('Required workflow labels (portable state machine):\n');
+  for (const l of labels) process.stdout.write(`- ${l}\n`);
+
+  if (mode === 'linear') {
+    process.stdout.write('\nLinear note:\n');
+    process.stdout.write('- These labels must exist in the Linear workspace before flows can apply them.\n');
+    process.stdout.write('- Create them in Linear: Workspace Settings → Labels.\n');
+  } else if (mode === 'atlassian') {
+    process.stdout.write('\nJira note:\n');
+    process.stdout.write('- Jira labels are free-form; they do not need to be pre-created.\n');
+  } else if (mode === 'github') {
+    process.stdout.write('\nGitHub note:\n');
+    process.stdout.write('- Labels must exist in the repository before they can be applied.\n');
+    process.stdout.write('- Create them in GitHub: Issues → Labels.\n');
+  }
 }
 
 function main() {
@@ -165,8 +201,8 @@ function main() {
 
   if (cmd === 'init') {
     const mode = String(args.flags.mode || 'atlassian');
-    if (!['atlassian', 'github', 'standalone'].includes(mode)) {
-      die('--mode must be one of: atlassian, github, standalone');
+    if (!['atlassian', 'github', 'linear', 'standalone'].includes(mode)) {
+      die('--mode must be one of: atlassian, github, linear, standalone');
     }
     initHost({ mode, force: Boolean(args.flags.force) });
     return;
@@ -200,6 +236,15 @@ function main() {
     process.stdout.write(res.stdout);
     process.stderr.write(res.stderr);
     process.exit(res.status || 0);
+  }
+
+  if (cmd === 'labels') {
+    const mode = args.flags.mode ? String(args.flags.mode) : null;
+    if (mode && !['atlassian', 'github', 'linear', 'standalone'].includes(mode)) {
+      die('--mode must be one of: atlassian, github, linear, standalone');
+    }
+    printLabels({ mode });
+    return;
   }
 
   die(`Unknown command: ${cmd}`);

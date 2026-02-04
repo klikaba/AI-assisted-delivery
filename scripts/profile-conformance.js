@@ -121,7 +121,7 @@ function main() {
   writeJson(path.join(hostRoot, '.agency-fixtures', 'state.json'), {
     tracker: {
       items: [
-        { id: 'T-2', key: 'T-2', title: 'Sync', labels: [label('ai-state:plan-review')], comments: ['Confluence Spec: https://fake.local/docs/page-a'] }
+        { id: 'T-2', key: 'T-2', title: 'Sync', labels: [label('ai-state:plan-review')], comments: ['Spec: page-a https://fake.local/docs/page-a'] }
       ]
     },
     docs: { pages: [{ id: 'page-a', title: 'Spec', body: 'x', status: 'APPROVED', url: 'https://fake.local/docs/page-a' }] }
