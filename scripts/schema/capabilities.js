@@ -13,7 +13,7 @@ function validateCapabilities(payload) {
   if (!isObject(payload.backends)) {
     errors.push('capabilities.backends must be an object');
   } else {
-    for (const k of ['tracker', 'docs', 'scm']) {
+    for (const k of ['tracker', 'docs', 'scm', 'tms']) {
       if (typeof payload.backends[k] !== 'string' || payload.backends[k].trim() === '') {
         errors.push(`capabilities.backends.${k} must be a non-empty string`);
       }
@@ -30,6 +30,26 @@ function validateCapabilities(payload) {
     }
   }
 
+  if (payload.tms !== undefined) {
+    if (!isObject(payload.tms)) {
+      errors.push('capabilities.tms must be an object');
+    } else {
+      for (const [k, v] of Object.entries(payload.tms)) {
+        if (typeof v !== 'boolean') errors.push(`capabilities.tms.${k} must be a boolean`);
+      }
+    }
+  }
+
+  if (payload.workflow !== undefined) {
+    if (!isObject(payload.workflow)) {
+      errors.push('capabilities.workflow must be an object');
+    } else {
+      for (const [k, v] of Object.entries(payload.workflow)) {
+        if (typeof v !== 'boolean') errors.push(`capabilities.workflow.${k} must be a boolean`);
+      }
+    }
+  }
+
   if (!isObject(payload.scm)) {
     errors.push('capabilities.scm must be an object');
   } else {
@@ -42,4 +62,3 @@ function validateCapabilities(payload) {
 }
 
 module.exports = { validateCapabilities };
-

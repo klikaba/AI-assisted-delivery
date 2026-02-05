@@ -106,6 +106,41 @@ function toAdfTextDoc(text) {
   };
 }
 
+function adfToText(node) {
+  const parts = [];
+
+  function walk(n) {
+    if (!n) return;
+    if (typeof n === 'string') {
+      parts.push(n);
+      return;
+    }
+    if (typeof n !== 'object') return;
+
+    if (n.type === 'text' && typeof n.text === 'string') {
+      parts.push(n.text);
+      return;
+    }
+    if (n.type === 'hardBreak') {
+      parts.push('\n');
+      return;
+    }
+
+    const isBlock = n.type === 'paragraph' || n.type === 'heading' || n.type === 'listItem';
+    const before = parts.length;
+    if (Array.isArray(n.content)) {
+      for (const c of n.content) walk(c);
+    }
+    if (isBlock && parts.length > before) parts.push('\n');
+  }
+
+  walk(node);
+  return parts
+    .join('')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 async function atlassianFetch(url, { method = 'GET', headers = {}, body } = {}) {
   const auth = getAuthHeader();
   const maxRetries = clamp(Number(process.env.AGENCY_ATLASSIAN_RETRIES || 4), 0, 10);
@@ -206,6 +241,36 @@ function normalizeIssue(jiraBase, issue) {
   };
 }
 
+async function tracker_comments({ id, limit }) {
+  const { jiraBase } = getAtlassianBases();
+  const wantedLimit = clamp(Number(limit || 50), 1, 200);
+  const results = [];
+  let startAt = 0;
+  const pageSize = clamp(Number(process.env.AGENCY_ATLASSIAN_COMMENT_PAGE_SIZE || 50), 1, 100);
+
+  while (results.length < wantedLimit) {
+    const url = new URL(`${jiraBase}/rest/api/3/issue/${encodeURIComponent(String(id))}/comment`);
+    url.searchParams.set('startAt', String(startAt));
+    url.searchParams.set('maxResults', String(Math.min(pageSize, wantedLimit - results.length)));
+    url.searchParams.set('orderBy', 'created');
+
+    // eslint-disable-next-line no-await-in-loop
+    const data = await atlassianFetch(url.toString());
+    const comments = Array.isArray(data.comments) ? data.comments : [];
+    for (const c of comments) {
+      const text = adfToText(c && c.body ? c.body : '');
+      if (text) results.push(text);
+      if (results.length >= wantedLimit) break;
+    }
+    if (comments.length === 0) break;
+    startAt += comments.length;
+    const total = Number(data.total);
+    if (Number.isFinite(total) && startAt >= total) break;
+  }
+
+  return results;
+}
+
 // ---- Tracker capability surface (Atlassian / Jira) ----
 
 async function tracker_search({ labels, text, jql, limit }) {
@@ -253,7 +318,9 @@ async function tracker_get({ id }) {
   const url = new URL(`${jiraBase}/rest/api/3/issue/${encodeURIComponent(String(id))}`);
   url.searchParams.set('fields', 'summary,labels,status,description');
   const issue = await atlassianFetch(url.toString());
-  return { item: normalizeIssue(jiraBase, issue) };
+  const item = normalizeIssue(jiraBase, issue);
+  item.comments = await tracker_comments({ id, limit: 200 });
+  return { item };
 }
 
 async function tracker_comment({ id, body }) {

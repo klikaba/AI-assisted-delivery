@@ -18,6 +18,18 @@
  */
 
 const { loadResolvedConfig, loadBackend, selectBackend } = require('./agency/runtime');
+const {
+  parseSpecRefFromComments,
+  parsePrRefFromComments,
+  parseGitHubPrNumberFromUrl,
+  parseQaMarker,
+  parseReviewMarker,
+  parseTestCasesRefFromComments,
+  normalizeStatus,
+  safeLabelIncludes,
+  workflowLabel,
+  workflowGate
+} = require('./agency/workflow');
 
 function writeStderr(line) {
   process.stderr.write(`${line}\n`);
@@ -229,6 +241,107 @@ function toolList() {
         required: ['number', 'ticket'],
         properties: { number: { type: 'number' }, ticket: { type: 'string' } }
       }
+    },
+    {
+      name: 'tms.suite_ensure',
+      description: 'Ensure a TestRail suite/section exists (provider-specific).',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          name: { type: 'string' },
+          project_id: { type: ['string', 'number'] }
+        }
+      }
+    },
+    {
+      name: 'tms.case_create',
+      description: 'Create a test case in the configured test management system.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['title'],
+        properties: {
+          title: { type: 'string' },
+          steps: { type: 'string' },
+          expected: { type: 'string' },
+          suite_id: { type: ['string', 'number'] },
+          section_id: { type: ['string', 'number'] }
+        }
+      }
+    },
+    {
+      name: 'workflow.summary',
+      description: 'Summarize workflow gates and linked evidence for a ticket (Spec/PR/QA/Review) for strict, role-agnostic operation.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id'],
+        properties: { id: { type: 'string' } }
+      }
+    },
+    {
+      name: 'workflow.queue',
+      description: 'List tickets matching labels and include workflow summaries (best-effort, limited).',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          labels: { type: 'array', items: { type: 'string' } },
+          text: { type: 'string' },
+          limit: { type: 'number' }
+        }
+      }
+    },
+    {
+      name: 'workflow.gate_status',
+      description: 'Render the standard 5-line Gate Status block for a ticket (Spec/PR/QA/Review/Next) derived from workflow.summary.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id'],
+        properties: { id: { type: 'string' } }
+      }
+    },
+    {
+      name: 'workflow.apply',
+      description: 'Apply a small set of tracker actions atomically (comments + labels + transitions) with optional strict evidence marker checks.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'actions'],
+        properties: {
+          id: { type: 'string' },
+          strict: { type: 'boolean' },
+          actions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['type'],
+              properties: {
+                type: { type: 'string' },
+                body: { type: 'string' },
+                add: { type: 'array', items: { type: 'string' } },
+                remove: { type: 'array', items: { type: 'string' } },
+                status: { type: 'string' }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      name: 'workflow.sync_plan_review',
+      description: 'PM automation: sync tickets in plan-review to approved/ready-for-plan based on Spec Status. Supports dry-run.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          limit: { type: 'number' },
+          dry_run: { type: 'boolean' }
+        }
+      }
     }
   ];
 
@@ -262,10 +375,12 @@ function computeCapabilities({ mode, config }) {
   const trackerBackendId = selectBackend('tracker', mode, config);
   const docsBackendId = selectBackend('docs', mode, config);
   const scmBackendId = selectBackend('scm', mode, config);
+  const tmsBackendId = selectBackend('tms', mode, config);
 
   const trackerBackend = loadBackend('tracker', trackerBackendId);
   const docsBackend = loadBackend('docs', docsBackendId);
   const scmBackend = scmBackendId === 'none' ? null : loadBackend('scm', scmBackendId);
+  const tmsBackend = tmsBackendId === 'none' ? null : loadBackend('tms', tmsBackendId);
 
   return {
     version: '1.0',
@@ -273,7 +388,8 @@ function computeCapabilities({ mode, config }) {
     backends: {
       tracker: trackerBackendId,
       docs: docsBackendId,
-      scm: scmBackendId
+      scm: scmBackendId,
+      tms: tmsBackendId
     },
     tracker: {
       search: hasFn(trackerBackend.tracker, 'search'),
@@ -286,6 +402,18 @@ function computeCapabilities({ mode, config }) {
       create: hasFn(docsBackend.docs, 'create'),
       get: hasFn(docsBackend.docs, 'get'),
       update: hasFn(docsBackend.docs, 'update')
+    },
+    tms: {
+      enabled: tmsBackendId !== 'none',
+      suite_ensure: tmsBackend ? hasFn(tmsBackend.tms, 'suite_ensure') : false,
+      case_create: tmsBackend ? hasFn(tmsBackend.tms, 'case_create') : false
+    },
+    workflow: {
+      summary: true,
+      queue: true,
+      gate_status: true,
+      apply: true,
+      sync_plan_review: true
     },
     scm: {
       enabled: scmBackendId !== 'none',
@@ -304,6 +432,359 @@ async function callTool(name, args) {
 
   if (name === 'capabilities.get') {
     return computeCapabilities({ mode, config });
+  }
+
+  function gateStatusLinesFromSummary(s) {
+    const specStatus = s?.evidence?.spec?.missing
+      ? 'missing'
+      : (s?.evidence?.spec?.status ? String(s.evidence.spec.status).toUpperCase() : 'UNKNOWN');
+
+    const prLinked = Boolean(s?.evidence?.pr?.linked);
+
+    const qaMarker = s?.evidence?.qa?.marker ? String(s.evidence.qa.marker).toUpperCase() : null;
+    const qaPassed = Boolean(s?.evidence?.qa?.passed);
+    const qaLine = qaMarker === 'PASS' || qaPassed ? 'PASS' : qaMarker === 'FAIL' ? 'FAIL' : 'missing';
+
+    const reviewMarker = s?.evidence?.review?.marker ? String(s.evidence.review.marker).toUpperCase() : null;
+    const reviewPassed = Boolean(s?.evidence?.review?.passed);
+    const reviewLine = reviewMarker === 'PASS' || reviewPassed ? 'PASS' : reviewMarker === 'FAIL' ? 'FAIL' : 'missing';
+
+    const next = s?.next ? String(s.next).replace(/\s+/g, ' ').trim() : 'N/A';
+
+    return [
+      `Spec: ${specStatus}`,
+      `PR: ${prLinked ? 'linked' : 'missing'}`,
+      `QA: ${qaLine}`,
+      `Review: ${reviewLine}`,
+      `Next: ${next}`
+    ];
+  }
+
+  if (name.startsWith('tms.')) {
+    const backendId = selectBackend('tms', mode, config);
+    if (backendId === 'none') {
+      throw new Error('TMS integration is disabled. Set tms.provider="testrail" (or AGENCY_TMS_PROVIDER=testrail).');
+    }
+    const backend = loadBackend('tms', backendId);
+    const fn = backend.tms?.[name.slice('tms.'.length)];
+    if (typeof fn !== 'function') throw new Error(`Tool not implemented: ${name}`);
+    return await fn(args || {});
+  }
+
+  async function computeSummaryForTicket(id) {
+    const ticketId = String(id || '');
+    if (!ticketId) throw new Error('workflow.summary requires id');
+
+    const trackerBackendId = selectBackend('tracker', mode, config);
+    const docsBackendId = selectBackend('docs', mode, config);
+    const scmBackendId = selectBackend('scm', mode, config);
+
+    const trackerBackend = loadBackend('tracker', trackerBackendId);
+    const docsBackend = loadBackend('docs', docsBackendId);
+    const scmBackend = scmBackendId === 'none' ? null : loadBackend('scm', scmBackendId);
+
+    const ticketRes = await trackerBackend.tracker.get({ id: ticketId });
+    const ticket = ticketRes?.item;
+    const comments = Array.isArray(ticket?.comments) ? ticket.comments : [];
+
+    const specRef = parseSpecRefFromComments(comments);
+    const prRef = parsePrRefFromComments(comments);
+    const qaMarker = parseQaMarker(comments);
+    const reviewMarker = parseReviewMarker(comments);
+    const testCasesRef = parseTestCasesRefFromComments(comments);
+
+    let spec = null;
+    if (specRef && specRef.id && typeof docsBackend.docs.get === 'function') {
+      try {
+        const pageRes = await docsBackend.docs.get({ id: String(specRef.id) });
+        const page = pageRes?.page;
+        spec = {
+          id: String(specRef.id),
+          status: page?.status ? String(page.status) : 'UNKNOWN',
+          url: page?.url ? String(page.url) : (specRef.url || null),
+          title: page?.title ? String(page.title) : null
+        };
+      } catch (err) {
+        spec = { id: String(specRef.id), status: 'UNKNOWN', url: specRef.url || null, title: null, error: err && err.message ? err.message : String(err) };
+      }
+    } else if (specRef && specRef.url) {
+      spec = { id: null, status: 'UNKNOWN', url: specRef.url, title: null };
+    }
+
+    let pr = null;
+    if (prRef && prRef.url) {
+      const number = parseGitHubPrNumberFromUrl(prRef.url);
+      if (number && scmBackend && typeof scmBackend.scm?.pr_get === 'function') {
+        try {
+          const prRes = await scmBackend.scm.pr_get({ number });
+          const prObj = prRes?.pr;
+          pr = {
+            number: Number(prObj?.number || number),
+            state: prObj?.state ? String(prObj.state) : 'UNKNOWN',
+            url: prObj?.url ? String(prObj.url) : prRef.url,
+            title: prObj?.title ? String(prObj.title) : null
+          };
+        } catch (err) {
+          pr = { number, state: 'UNKNOWN', url: prRef.url, title: null, error: err && err.message ? err.message : String(err) };
+        }
+      } else {
+        pr = { number: number || null, state: 'UNKNOWN', url: prRef.url, title: null };
+      }
+    }
+
+    const labels = Array.isArray(ticket?.labels) ? ticket.labels.map(String) : [];
+    const labelReviewed = workflowLabel(config, 'reviewed', 'ai-state:reviewed');
+    const labelVerified = workflowLabel(config, 'verified', 'ai-state:verified');
+    const labelApproved = workflowLabel(config, 'approved', 'ai-state:approved');
+    const labelInQa = workflowLabel(config, 'in_qa', 'ai-state:in-qa');
+    const labelReadyForPlan = workflowLabel(config, 'ready_for_plan', 'ai-state:ready-for-plan');
+    const labelPlanReview = workflowLabel(config, 'plan_review', 'ai-state:plan-review');
+    const labelSecurityPass = workflowLabel(config, 'security_pass', 'ai-state:security-pass');
+
+    const gateSpec = workflowGate(config, 'spec_approval', true);
+    const gateReview = workflowGate(config, 'code_review', true);
+    const gateQa = workflowGate(config, 'qa_verification', true);
+    const gateSecurity = workflowGate(config, 'security_audit', false);
+    const gateTestCases = workflowGate(config, 'test_cases', true);
+    const tmsProvider = String(config?.tms?.provider || 'none');
+    const tmsBackendId = selectBackend('tms', mode, config);
+    const requiresTmsCases = gateTestCases && tmsProvider !== 'none';
+    const isInQa = safeLabelIncludes(labels, labelInQa);
+    const isVerified = safeLabelIncludes(labels, labelVerified);
+
+    const specApproved = !gateSpec || normalizeStatus(spec?.status) === 'APPROVED';
+    const reviewPassed = !gateReview || safeLabelIncludes(labels, labelReviewed);
+    const qaPassed = !gateQa || safeLabelIncludes(labels, labelVerified);
+    const securityPassed = !gateSecurity || safeLabelIncludes(labels, labelSecurityPass);
+
+    const evidence = {
+      spec: spec ? { ...spec, approved: specApproved } : { approved: !gateSpec, missing: gateSpec },
+      pr: pr ? { ...pr, linked: true } : { linked: false },
+      tms: { required: requiresTmsCases, enabled: tmsProvider !== 'none', backend: tmsBackendId, ref: testCasesRef },
+      qa: { required: gateQa, passed: qaPassed, label: labelVerified, marker: qaMarker },
+      review: { required: gateReview, passed: reviewPassed, label: labelReviewed, marker: reviewMarker },
+      security: { required: gateSecurity, passed: securityPassed, label: labelSecurityPass }
+    };
+
+    const missing = [];
+    if (gateSpec && !specApproved) missing.push('spec approval');
+    if (gateQa && !qaPassed) missing.push('qa verification');
+    if (gateReview && !reviewPassed) missing.push('code review');
+    if (gateSecurity && !securityPassed) missing.push('security audit');
+    if (requiresTmsCases && (isInQa || isVerified) && !testCasesRef) missing.push('test cases');
+
+    let next = null;
+    if (!spec) next = 'Run Planning Agent to create/link a Spec.';
+    else if (gateSpec && !specApproved) next = 'Approve the Spec in Confluence (Spec Status: APPROVED), then run PM Governance Sync to apply the approved label.';
+    else if (requiresTmsCases && isInQa && !testCasesRef) next = 'Create test cases in the test repository (e.g. TestRail) and comment `TestCases: ...`, then implement automation and rerun QA.';
+    else if (!safeLabelIncludes(labels, labelApproved) && !safeLabelIncludes(labels, labelInQa) && !safeLabelIncludes(labels, labelVerified) && !safeLabelIncludes(labels, labelReviewed)) {
+      next = `Apply label ${labelApproved} (or run PM Governance Sync), then run Developer Agent.`;
+    } else if (!pr) next = 'Run Developer Agent to implement and create/link a PR.';
+    else if (safeLabelIncludes(labels, labelInQa) && gateQa && !qaPassed) next = 'Run QA Engineer Agent to verify.';
+    else if (safeLabelIncludes(labels, labelVerified) && gateReview && !reviewPassed) next = 'Run Code Reviewer Agent to review.';
+    else if (safeLabelIncludes(labels, labelReadyForPlan)) next = 'Run Planning Agent.';
+    else if (safeLabelIncludes(labels, labelPlanReview)) next = 'Approve Spec (Spec Status: APPROVED), then run PM Governance Sync.';
+
+    return {
+      version: '1.0',
+      ticket: {
+        id: ticket?.id ? String(ticket.id) : ticketId,
+        key: ticket?.key ? String(ticket.key) : null,
+        title: ticket?.title ? String(ticket.title) : '',
+        url: ticket?.url ? String(ticket.url) : null,
+        labels
+      },
+      backends: { tracker: trackerBackendId, docs: docsBackendId, scm: scmBackendId },
+      gates: { spec_approval: gateSpec, qa_verification: gateQa, code_review: gateReview, security_audit: gateSecurity },
+      evidence,
+      missing,
+      next
+    };
+  }
+
+  if (name === 'workflow.summary') {
+    return await computeSummaryForTicket(args?.id);
+  }
+
+  if (name === 'workflow.gate_status') {
+    const s = await computeSummaryForTicket(args?.id);
+    const lines = gateStatusLinesFromSummary(s);
+    return { version: '1.0', id: s?.ticket?.key || s?.ticket?.id || String(args?.id || ''), lines, summary: s };
+  }
+
+  if (name === 'workflow.queue') {
+    const labels = Array.isArray(args?.labels) ? args.labels.map(String) : [];
+    const text = args?.text !== undefined ? String(args.text) : undefined;
+    const limit = args?.limit !== undefined ? Number(args.limit) : 10;
+    if (!Number.isFinite(limit) || limit <= 0) throw new Error('workflow.queue requires a positive limit');
+
+    const trackerBackendId = selectBackend('tracker', mode, config);
+    const trackerBackend = loadBackend('tracker', trackerBackendId);
+    const search = await trackerBackend.tracker.search({ labels, text, limit });
+    const items = Array.isArray(search?.items) ? search.items : [];
+
+    const summaries = [];
+    for (const it of items.slice(0, limit)) {
+      const ticketId = it.key || it.id;
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const s = await computeSummaryForTicket(ticketId);
+        summaries.push({ ...s, gate_status_lines: gateStatusLinesFromSummary(s) });
+      } catch (err) {
+        summaries.push({
+          version: '1.0',
+          ticket: { id: String(ticketId), key: it.key ? String(it.key) : null, title: it.title ? String(it.title) : '', url: it.url ? String(it.url) : null, labels: Array.isArray(it.labels) ? it.labels.map(String) : [] },
+          error: err && err.message ? err.message : String(err)
+        });
+      }
+    }
+
+    return { version: '1.0', items: summaries };
+  }
+
+  if (name === 'workflow.apply') {
+    const id = args?.id ? String(args.id) : '';
+    if (!id) throw new Error('workflow.apply requires id');
+    const strict = args?.strict !== undefined ? Boolean(args.strict) : true;
+    const actions = Array.isArray(args?.actions) ? args.actions : [];
+    if (actions.length === 0) throw new Error('workflow.apply requires non-empty actions');
+
+    const trackerBackendId = selectBackend('tracker', mode, config);
+    const trackerBackend = loadBackend('tracker', trackerBackendId);
+
+    // Strict evidence marker checks for the two gates that rely on humans trusting the label:
+    // - Verified label must be accompanied by "QA: PASS"
+    // - Reviewed label must be accompanied by "Review: PASS"
+    const labelVerified = workflowLabel(config, 'verified', 'ai-state:verified');
+    const labelReviewed = workflowLabel(config, 'reviewed', 'ai-state:reviewed');
+    const requiresTmsCases = workflowGate(config, 'test_cases', true) && String(config?.tms?.provider || 'none') !== 'none';
+
+    const adds = [];
+    let commentBodies = '';
+    for (const a of actions) {
+      if (!a || typeof a !== 'object') continue;
+      if (a.type === 'set_labels') {
+        for (const l of a.add || []) adds.push(String(l));
+      }
+      if (a.type === 'comment') {
+        commentBodies += `\n${String(a.body || '')}\n`;
+      }
+    }
+
+    if (strict) {
+      if (adds.includes(labelVerified) && !/QA\s*:\s*PASS\b/i.test(commentBodies)) {
+        throw new Error(`workflow.apply strict mode: adding ${labelVerified} requires a comment containing "QA: PASS"`);
+      }
+      if (adds.includes(labelVerified) && requiresTmsCases && !/TestCases\s*:\s*\S+/i.test(commentBodies)) {
+        // Allow the TestCases marker to already exist on the ticket from a prior step.
+        // This avoids forcing a single mega-comment, while still enforcing evidence.
+        let existingHasTestCases = false;
+        try {
+          const item = await trackerBackend.tracker.get({ id });
+          const comments = Array.isArray(item?.item?.comments) ? item.item.comments : [];
+          existingHasTestCases = /TestCases\s*:\s*\S+/i.test(comments.join('\n'));
+        } catch {
+          existingHasTestCases = false;
+        }
+        if (!existingHasTestCases) {
+          throw new Error(`workflow.apply strict mode: adding ${labelVerified} requires a comment containing "TestCases: ..." when tms.provider is enabled`);
+        }
+      }
+      if (adds.includes(labelReviewed) && !/Review\s*:\s*PASS\b/i.test(commentBodies)) {
+        throw new Error(`workflow.apply strict mode: adding ${labelReviewed} requires a comment containing "Review: PASS"`);
+      }
+    }
+
+    const results = [];
+    for (const a of actions) {
+      if (!a || typeof a !== 'object') continue;
+      const type = String(a.type || '');
+      if (type === 'comment') {
+        // eslint-disable-next-line no-await-in-loop
+        const r = await trackerBackend.tracker.comment({ id, body: String(a.body || '') });
+        results.push({ type, ok: true, result: r });
+        continue;
+      }
+      if (type === 'set_labels') {
+        // eslint-disable-next-line no-await-in-loop
+        const r = await trackerBackend.tracker.set_labels({ id, add: a.add || [], remove: a.remove || [] });
+        results.push({ type, ok: true, result: r });
+        continue;
+      }
+      if (type === 'transition') {
+        // eslint-disable-next-line no-await-in-loop
+        const r = await trackerBackend.tracker.transition({ id, status: String(a.status || '') });
+        results.push({ type, ok: true, result: r });
+        continue;
+      }
+      throw new Error(`workflow.apply: unknown action type "${type}"`);
+    }
+
+    return { ok: true, results };
+  }
+
+  if (name === 'workflow.sync_plan_review') {
+    const dryRun = args?.dry_run !== undefined ? Boolean(args.dry_run) : true;
+    const limit = args?.limit !== undefined ? Number(args.limit) : 25;
+    if (!Number.isFinite(limit) || limit <= 0) throw new Error('workflow.sync_plan_review requires a positive limit');
+
+    const trackerBackendId = selectBackend('tracker', mode, config);
+    const trackerBackend = loadBackend('tracker', trackerBackendId);
+
+    const labelPlanReview = workflowLabel(config, 'plan_review', 'ai-state:plan-review');
+    const labelApproved = workflowLabel(config, 'approved', 'ai-state:approved');
+    const labelReadyForPlan = workflowLabel(config, 'ready_for_plan', 'ai-state:ready-for-plan');
+
+    const search = await trackerBackend.tracker.search({ labels: [labelPlanReview], limit });
+    const items = Array.isArray(search?.items) ? search.items : [];
+
+    const decisions = [];
+    for (const it of items.slice(0, limit)) {
+      const ticketId = it.key || it.id;
+      // eslint-disable-next-line no-await-in-loop
+      const summary = await computeSummaryForTicket(ticketId);
+      const specStatus = normalizeStatus(summary?.evidence?.spec?.status);
+
+      let decision = 'noop';
+      let planned = [];
+      let note = null;
+
+      if (!summary?.evidence?.spec || summary?.evidence?.spec?.missing) {
+        decision = 'blocked';
+        note = 'No linked Spec found; cannot sync.';
+        planned = [{ type: 'comment', body: 'Governance Sync: BLOCKED - missing linked Spec (expected `Spec: <id> <url>` comment).' }];
+      } else if (specStatus === 'APPROVED') {
+        decision = 'approve';
+        planned = [
+          { type: 'set_labels', remove: [labelPlanReview], add: [labelApproved] },
+          { type: 'comment', body: `Governance Sync: Spec APPROVED -> added ${labelApproved}` }
+        ];
+      } else if (specStatus === 'CHANGES REQUESTED' || specStatus === 'CHANGES_REQUESTED') {
+        decision = 'changes_requested';
+        planned = [
+          { type: 'set_labels', remove: [labelPlanReview], add: [labelReadyForPlan] },
+          { type: 'comment', body: `Governance Sync: Spec CHANGES REQUESTED -> added ${labelReadyForPlan}` }
+        ];
+      } else {
+        decision = 'wait';
+        planned = [{ type: 'comment', body: `Governance Sync: Spec status is ${specStatus || 'UNKNOWN'}; keeping ${labelPlanReview}.` }];
+      }
+
+      if (!dryRun) {
+        // eslint-disable-next-line no-await-in-loop
+        await callTool('workflow.apply', { id: String(ticketId), strict: true, actions: planned });
+      }
+
+      decisions.push({
+        ticket: summary.ticket,
+        specStatus: specStatus || 'UNKNOWN',
+        decision,
+        note,
+        actions: planned
+      });
+    }
+
+    return { version: '1.0', dry_run: dryRun, items: decisions };
   }
 
   if (name.startsWith('tracker.')) {
