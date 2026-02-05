@@ -56,7 +56,7 @@ function tracker_get({ id }) {
     'view',
     String(id),
     '--json',
-    'number,title,url,state,labels,body'
+    'number,title,url,state,labels,body,comments'
   ]);
   const i = JSON.parse(json);
   return {
@@ -68,7 +68,7 @@ function tracker_get({ id }) {
       status: i.state || null,
       labels: Array.isArray(i.labels) ? i.labels.map((l) => l.name).sort() : [],
       body: i.body || '',
-      comments: []
+      comments: Array.isArray(i.comments) ? i.comments.map((c) => c && c.body ? String(c.body) : '').filter(Boolean) : []
     }
   };
 }

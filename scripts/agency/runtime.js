@@ -19,14 +19,19 @@ function selectBackend(kind, mode, config) {
   // - AGENCY_TRACKER_BACKEND=fake
   // - AGENCY_DOCS_BACKEND=fake
   // - AGENCY_SCM_BACKEND=fake|github|none
+  // - AGENCY_TMS_BACKEND=fake|testrail|none
   const global = process.env.AGENCY_INTEGRATION_BACKEND;
   const specific = kind === 'tracker'
     ? process.env.AGENCY_TRACKER_BACKEND
     : kind === 'docs'
       ? process.env.AGENCY_DOCS_BACKEND
-      : process.env.AGENCY_SCM_BACKEND;
+      : kind === 'scm'
+        ? process.env.AGENCY_SCM_BACKEND
+        : process.env.AGENCY_TMS_BACKEND;
 
-  const forced = specific || global;
+  // TMS should not be implicitly enabled by the global integration override;
+  // teams can enable it via config (tms.provider) and/or AGENCY_TMS_BACKEND.
+  const forced = kind === 'tms' ? specific : (specific || global);
   if (forced) return forced;
 
   // Default mapping:
@@ -55,6 +60,13 @@ function selectBackend(kind, mode, config) {
     return 'repo';
   }
 
+  if (kind === 'tms') {
+    const provider = config?.tms?.provider || 'none';
+    if (provider === 'none') return 'none';
+    if (provider === 'testrail') return 'testrail';
+    return String(provider);
+  }
+
   if (mode === 'linear') return 'linear';
   if (mode === 'github') return 'github';
   if (mode === 'standalone') return 'fake';
@@ -63,7 +75,7 @@ function selectBackend(kind, mode, config) {
 
 function loadBackend(kind, backendId) {
   if (backendId === 'none') {
-    return { id: 'none', tracker: {}, docs: {}, scm: {} };
+    return { id: 'none', tracker: {}, docs: {}, scm: {}, tms: {} };
   }
   if (backendId === 'fake') {
     // eslint-disable-next-line global-require
@@ -84,6 +96,10 @@ function loadBackend(kind, backendId) {
   if (backendId === 'linear') {
     // eslint-disable-next-line global-require
     return require('./backends/linear');
+  }
+  if (backendId === 'testrail') {
+    // eslint-disable-next-line global-require
+    return require('./backends/testrail');
   }
   throw new Error(`Unknown backend "${backendId}" for kind="${kind}"`);
 }

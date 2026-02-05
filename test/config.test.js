@@ -118,3 +118,32 @@ test('config: invalid JSON in project config fails validate/generate', () => {
   const gen = runConfig(['--generate'], hostRoot);
   assert.notEqual(gen.status, 0, 'Expected generate to fail');
 });
+
+test('config: can generate focused OpenCode presets', () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' },
+    docs: { provider: 'atlassian' },
+    scm: { provider: 'github' }
+  });
+
+  const gen = runConfig(['--generate', '--preset', 'planning'], hostRoot);
+  assert.equal(gen.status, 0, gen.stderr || gen.stdout);
+
+  const outPath = path.join(hostRoot, 'opencode.planning.jsonc');
+  assert.ok(fs.existsSync(outPath), 'Expected opencode.planning.jsonc to be generated');
+  const opencodeConfig = readOpencodeJsonc(outPath);
+
+  assert.ok(opencodeConfig.agent?.['Planning Agent'], 'Expected Planning Agent to be present');
+  assert.equal(opencodeConfig.agent?.['Developer Agent'], undefined, 'Expected Developer Agent to be omitted in planning preset');
+
+  const genAll = runConfig(['--generate', '--presets'], hostRoot);
+  assert.equal(genAll.status, 0, genAll.stderr || genAll.stdout);
+  assert.ok(fs.existsSync(path.join(hostRoot, 'opencode.dev.jsonc')), 'Expected opencode.dev.jsonc to be generated');
+  assert.ok(fs.existsSync(path.join(hostRoot, 'opencode.qa.jsonc')), 'Expected opencode.qa.jsonc to be generated');
+  const docPath = path.join(hostRoot, 'OPENCODE_PRESETS.md');
+  assert.ok(fs.existsSync(docPath), 'Expected OPENCODE_PRESETS.md to be generated');
+  const doc = fs.readFileSync(docPath, 'utf8');
+  assert.ok(doc.includes('opencode --config opencode.planning.jsonc'), 'Expected planning command in presets doc');
+});

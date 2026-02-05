@@ -30,6 +30,15 @@
   "scm": {
     "provider": "none"
   },
+  "tms": {
+    "provider": "none",
+    "testrail": {
+      "project_id": null,
+      "suite_id": null,
+      "section_id": null,
+      "suite_strategy": "component"
+    }
+  },
   "agents": {
     "product_owner": { "enabled": true },
     "planning": { "enabled": true },
@@ -49,7 +58,25 @@
     "commit_pattern": "{ticket}: {message}"
   },
   "workflow": {
-    "skip_states": []
+    "skip_states": [],
+    "labels": {
+      "ready_for_plan": "ai-state:ready-for-plan",
+      "plan_review": "ai-state:plan-review",
+      "approved": "ai-state:approved",
+      "in_qa": "ai-state:in-qa",
+      "verified": "ai-state:verified",
+      "reviewed": "ai-state:reviewed",
+      "review_fail": "ai-state:review-fail",
+      "security_pass": "ai-state:security-pass",
+      "security_fail": "ai-state:security-fail"
+    },
+    "gates": {
+      "spec_approval": true,
+      "code_review": true,
+      "qa_verification": true,
+      "security_audit": false,
+      "test_cases": true
+    }
   },
   "opencode": {
     "permission": {

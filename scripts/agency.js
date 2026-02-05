@@ -84,7 +84,7 @@ Usage:
   node scripts/agency.js <domain> <action> [--flags] [--json]
 
 Domains/actions:
-  tracker search   --label <label> [--label <label> ...] [--text <text>] [--json]
+  tracker search   --label <label> [--label <label> ...] [--text <text>] [--limit <n>] [--jql <jql>] [--json]
   tracker get      --id <id> [--json]
   tracker comment  --id <id> --body <text> [--json]
   tracker transition --id <id> --status <status> [--json]
@@ -131,7 +131,9 @@ async function main() {
         const res = backend.tracker.search({
           label: undefined,
           labels: coerceArray(flags.label),
-          text: flags.text
+          text: flags.text,
+          jql: flags.jql,
+          limit: flags.limit
         });
         jsonOut(res, args.json);
         return;

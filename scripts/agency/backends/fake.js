@@ -38,12 +38,15 @@ function loadState() {
   const statePath = path.join(root, 'state.json');
   if (!fs.existsSync(statePath)) {
     // Default empty state.
-    return { tracker: { items: [] }, docs: { pages: [] }, scm: { prs: [] } };
+    return { tracker: { items: [] }, docs: { pages: [] }, scm: { prs: [] }, tms: { suites: [], cases: [] } };
   }
   const state = readJson(statePath);
   // Backwards compatibility for older fixtures.
   if (!state.scm) state.scm = { prs: [] };
   if (!Array.isArray(state.scm.prs)) state.scm.prs = [];
+  if (!state.tms) state.tms = { suites: [], cases: [] };
+  if (!Array.isArray(state.tms.suites)) state.tms.suites = [];
+  if (!Array.isArray(state.tms.cases)) state.tms.cases = [];
   return state;
 }
 
@@ -283,5 +286,35 @@ module.exports = {
     pr_comment: scm_pr_comment,
     pr_set_labels: scm_pr_set_labels,
     pr_link_ticket: scm_pr_link_ticket
+  },
+  tms: {
+    suite_ensure({ name, project_id }) {
+      const state = loadState();
+      const title = String(name || 'Default Suite');
+      const pid = project_id !== undefined && project_id !== null ? String(project_id) : '1';
+      let suite = state.tms.suites.find((s) => s.name === title && String(s.project_id) === pid);
+      if (!suite) {
+        suite = { id: `suite-${Date.now()}-${Math.random().toString(16).slice(2)}`, name: title, project_id: pid, url: `https://fake.local/testrail/suites/${pid}` };
+        state.tms.suites.push(suite);
+        saveState(state);
+      }
+      return { suite: { id: suite.id, name: suite.name, project_id: suite.project_id, url: suite.url } };
+    },
+    case_create({ title, steps, expected, suite_id, section_id }) {
+      const state = loadState();
+      const id = `C${1000 + state.tms.cases.length}`;
+      const c = {
+        id,
+        title: String(title || ''),
+        steps: String(steps || ''),
+        expected: String(expected || ''),
+        suite_id: suite_id ? String(suite_id) : null,
+        section_id: section_id ? String(section_id) : null,
+        url: `https://fake.local/testrail/cases/${id}`
+      };
+      state.tms.cases.push(c);
+      saveState(state);
+      return { case: c };
+    }
   }
 };

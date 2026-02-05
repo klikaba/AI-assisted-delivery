@@ -12,7 +12,8 @@ Changelog: `CHANGELOG.md`
 - **Tracker backends:** Atlassian (Jira), GitHub Issues, Linear, Standalone (fake/offline).
 - **Docs providers (optional):** repo-backed Markdown (`docs.provider="repo"`, default), Atlassian (Confluence), or disabled (`none`).
 - **SCM providers:** GitHub PR workflow via `gh` (optional) or disabled (`none`).
-- **Stable capability tools for agents:** `tracker.*`, `docs.*`, `scm.*` via local Agency MCP.
+- **Stable capability tools for agents:** `tracker.*`, `docs.*`, `scm.*`, `workflow.*` via local Agency MCP.
+- **Test management (optional):** `tms.*` with configurable provider (default: disabled).
 - **Deterministic conformance:** simulations + trace snapshots for regression protection.
 
 ## What Needs To Happen Next
@@ -37,6 +38,65 @@ opencode --config opencode.jsonc
 ```
 
 If you get stuck, run: `./.agency/bin/agency doctor`
+
+## MVP: Jira + GitHub (Golden Path)
+
+Goal: run one ticket from `ai-state:ready-for-plan` → Spec created/approved → PR created/linked.
+
+1) Initialize in your host repo:
+
+```bash
+./.agency/bin/agency init --mode atlassian --docs atlassian
+./.agency/bin/agency doctor
+```
+
+2) Configure Jira + GitHub auth:
+- Set `ATLASSIAN_SITE`, `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN` (see `.agency/.env.example`).
+- Set `CONFLUENCE_SPACE_KEY` (and optionally `CONFLUENCE_BASE_URL`) for specs in Confluence.
+- Authenticate GitHub CLI: `gh auth login`
+- Optional live verification: `AGENCY_DOCTOR_LIVE=1 ./.agency/bin/agency doctor`
+
+3) Create/select a Jira issue and add label `ai-state:ready-for-plan`.
+
+4) Run the Planning agent (via OpenCode) which will:
+- create a Spec via `docs.create` (Confluence when `docs.provider=atlassian`, otherwise repo-backed markdown under `docs/agency`)
+- comment on the Jira issue with `Spec: <id> <url>` so downstream agents can find it
+- move labels forward (e.g. `ai-state:plan-review`)
+
+5) Approve the spec, then run Governance Sync to apply `ai-state:approved`:
+- In Confluence: set `Spec Status: APPROVED` on the spec page.
+- Alternatively (if you prefer CLI-driven approval): `./.agency/bin/agency spec approve --id <specId>`
+- In OpenCode: run **Project Manager Agent (Governance Sync)** (it syncs spec status back to Jira labels).
+
+6) Run the Dev agent (via OpenCode) which will:
+- verify spec status is `APPROVED`
+- create/link a PR via GitHub (`scm.pr_create`, `scm.pr_link_ticket`)
+
+Helper commands:
+- Queue view: `./.agency/bin/agency next --label ai-state:ready-for-plan --limit 10`
+- Ticket summary: `./.agency/bin/agency open --id <JIRA_KEY>`
+- Spec approval: `./.agency/bin/agency spec approve --id <specId>`
+
+### Operator Script (OpenCode TUI)
+
+This is the “happy path” your team runs day-to-day in the OpenCode TUI.
+
+1) Start OpenCode from your host repo root:
+   - `opencode --config opencode.jsonc`
+2) In Jira, add label `ai-state:ready-for-plan` to a ticket.
+3) In OpenCode, run **Planning Agent**:
+   - Select the ticket when prompted.
+   - Approve “create Spec + JSON Plan” when it asks to proceed.
+4) In Confluence, set `Spec Status: APPROVED` on the newly created spec page.
+5) In OpenCode, run **Project Manager Agent (Governance Sync)**:
+   - It should sync the approved spec back to Jira by applying `ai-state:approved`.
+6) In OpenCode, run **Developer Agent**:
+   - It verifies `ai-state:approved` + `Spec Status: APPROVED`, implements, then opens/links a GitHub PR.
+   - It moves the ticket to `ai-state:in-qa`.
+7) In OpenCode, run **QA Engineer Agent**:
+   - On PASS: it moves the ticket to `ai-state:verified`.
+8) In OpenCode, run **Code Reviewer Agent**:
+   - On PASS: it adds `ai-state:reviewed`.
 
 ## What This Is
 
@@ -246,6 +306,9 @@ node .agency/scripts/config.js --validate
 
 # Regenerate opencode.jsonc
 node .agency/scripts/config.js --generate
+
+# Generate OpenCode presets (multiple opencode.<preset>.jsonc files + OPENCODE_PRESETS.md)
+node .agency/scripts/config.js --generate --presets
 ```
 
 ### Environment Variable Overrides
@@ -256,6 +319,7 @@ node .agency/scripts/config.js --generate
 - `AGENCY_LINT_COMMAND` - Override lint command
 - `AGENCY_DOCS_PROVIDER` - Override docs provider (none/repo/atlassian)
 - `AGENCY_DOCS_DIR` - Override repo docs dir (relative to host root)
+- `AGENCY_TMS_PROVIDER` - Override test management provider (none/testrail)
 
 ## Context Engine
 
@@ -356,10 +420,25 @@ Status transitions are treated as best-effort. Status names differ across projec
 
 1. Initialize: `./.agency/bin/agency init --mode <atlassian|github|linear|standalone>`
 2. Commit host config: `git add .agency-project.json .agency-rules.md .gitignore && git commit`
-3. Start OpenCode: `opencode .`
-4. Choose an agent (e.g. Product Owner, Planning, Developer).
-5. Use `ai-state:*` labels to move issues through the workflow.
-6. Use `Spec Status` (via your configured docs provider) as the human approval gate.
+3. Start OpenCode (primary UX): `opencode --config opencode.jsonc`
+4. Choose an agent (e.g. Product Owner, Planning, Developer) and follow its dashboard protocol.
+5. Optional terminal helpers (outside OpenCode) for navigation:
+   - Queue: `./.agency/bin/agency next`
+   - Ticket summary: `./.agency/bin/agency open --id <JIRA_KEY>`
+6. Use `ai-state:*` labels to move issues through the workflow; keep your Jira statuses/board as-is.
+7. Use `Spec Status` (via your configured docs provider) as the human approval gate.
+
+### OpenCode Presets (Modular TUI)
+
+If you don’t want the full SDLC menu in the OpenCode TUI, you can generate focused configs and start OpenCode with one role at a time:
+
+1. Generate all presets: `./.agency/bin/agency generate --presets`
+   - List presets: `./.agency/bin/agency presets`
+   - Generates `OPENCODE_PRESETS.md` with copy/paste commands
+2. Start OpenCode with a preset, for example:
+   - Planning only: `opencode --config opencode.planning.jsonc`
+   - Dev only: `opencode --config opencode.dev.jsonc`
+   - QA only: `opencode --config opencode.qa.jsonc`
 
 ### Recommended First Ticket Walkthrough
 
@@ -386,6 +465,14 @@ If you previously copied a folder instead of using a submodule, remove the old d
 - Planning generates a spec that includes `Spec Status: DRAFT` (encoding depends on docs provider).
 - Human reviewers update `Spec Status` to `APPROVED` (or `CHANGES REQUESTED`) to open/close the governance gate.
 
+## QA Test Cases (Optional: TestRail / TMS)
+
+If you enable a test management system (`tms.provider`, default: `none`), the QA flow becomes strict:
+
+- QA must first create/save test cases in the TMS (default adapter: TestRail).
+- QA must comment on the ticket with a machine-parseable marker: `TestCases: ...`
+- Only then can QA mark verification (`ai-state:verified`) using `QA: PASS` + `workflow.apply` (which enforces the evidence marker when TMS is enabled).
+
 ## Environment
 
 This repo includes `.env.example` as a safe starting point. In your host repo you typically create a `.env` (gitignored) with any required environment variables (e.g. Confluence space key).
@@ -395,3 +482,4 @@ Common variables:
 - Atlassian (Jira REST): `ATLASSIAN_SITE`, `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN`
 - Confluence docs provider (only when `docs.provider="atlassian"`): `CONFLUENCE_SPACE_KEY` (and optionally `CONFLUENCE_BASE_URL`)
 - Linear tracker: `LINEAR_API_KEY` (or `LINEAR_ACCESS_TOKEN`)
+- TestRail (only when `tms.provider="testrail"` / `AGENCY_TMS_PROVIDER=testrail`): `TESTRAIL_HOST`, `TESTRAIL_USERNAME`, `TESTRAIL_API_KEY`, `TESTRAIL_PROJECT_ID` (optional: `TESTRAIL_SUITE_ID`, `TESTRAIL_SECTION_ID`)

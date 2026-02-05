@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 This project follows Semantic Versioning (SemVer) with the caveat that `0.x` releases may include breaking changes between minor versions.
 
+## Unreleased
+
+- (No changes yet.)
+
+## 0.7.0 - 2026-02-05
+
+- Add workflow UX tools: `workflow.queue`, `workflow.summary`, `workflow.gate_status`, `workflow.apply`, `workflow.sync_plan_review`.
+- Add modular OpenCode presets generation (`opencode.<preset>.jsonc`) and `OPENCODE_PRESETS.md`.
+- Add optional Test Management integration (`tms.*`) with TestRail backend and strict QA evidence gating (`TestCases: ...`).
+
 ## 0.6.0 - 2026-02-04
 
 - Add Linear tracker integration (`tracker.mode = "linear"`) via Linear GraphQL API.
