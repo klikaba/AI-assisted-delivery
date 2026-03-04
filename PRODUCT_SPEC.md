@@ -205,14 +205,20 @@ This ensures:
 ready-for-plan
 → plan-review
 → approved
-→ in-development
 → in-qa
 → verified
-→ security-pass / security-fail
-→ reviewed / review-fail
+   ├─→ reviewed / review-fail       (Code Reviewer Agent)
+   └─→ security-pass / security-fail (Security Engineer Agent, optional)
+→ release                       (Project Manager Agent)
 ```
 
 State transitions are **explicit, logged, and immutable**.
+
+**Note:** 
+- The Developer agent transitions to `in-qa` (not `in-development`).
+- Review and Security audits both start from `verified` and can run in parallel.
+- Release requires: `verified` + `reviewed` + `security-pass` (if `config.workflow.gates.security_audit=true`).
+- Status transitions are best-effort and project-specific; labels are the portable state machine.
 
 ---
 
@@ -308,7 +314,7 @@ The platform **supports** compliance efforts by providing:
 ### Mandatory
 
 * Git (version control)
-* Jira (work tracking)
+* Jira (work tracking) or alternative (GitHub/Linear)
 * Docs provider (specification & approvals)
 * OpenCode (agent orchestration)
 
@@ -318,6 +324,19 @@ The platform **supports** compliance efforts by providing:
 * Security tools (Snyk, SonarQube, Black Duck)
 * Monitoring (Datadog, Prometheus)
 * Communication (Slack, Teams)
+* Test Management (TestRail)
+* SCM (GitHub PRs via `gh` CLI)
+
+### Capability Surface (Agency MCP)
+
+The platform exposes stable, vendor-agnostic tools:
+
+* **Tracker:** `tracker.search`, `tracker.get`, `tracker.comment`, `tracker.transition`, `tracker.set_labels`
+* **Docs:** `docs.create`, `docs.get`, `docs.update`
+* **SCM:** `scm.pr_create`, `scm.pr_get`, `scm.pr_comment`, `scm.pr_set_labels`, `scm.pr_link_ticket`
+* **Workflow:** `workflow.queue`, `workflow.gate_status`, `workflow.summary`, `workflow.apply`, `workflow.sync_plan_review`
+* **TMS:** `tms.suite_ensure`, `tms.case_create`
+* **Capabilities:** `capabilities.get`
 
 ---
 
@@ -330,12 +349,26 @@ The platform **supports** compliance efforts by providing:
 * Isolated configuration
 * Backward compatibility guarantees
 
-### Configuration
+### Configuration System
 
-* Central `opencode.jsonc`
-* Per-agent model assignment
-* Environment-aware settings
-* Validated before execution
+* **Layered config:** `defaults.json` → `.agency-org.json` → `.agency-project.json` → ENV overrides
+* **Central:** `opencode.jsonc` (generated)
+* **Per-agent model assignment**
+* **Environment-aware settings**
+* **Validated before execution**
+
+### Backend Adapters
+
+* **Tracker:** Atlassian (REST), GitHub (gh CLI), Linear (GraphQL), Fake (offline)
+* **Docs:** Repo (Markdown), Atlassian (Confluence), Fake (offline)
+* **SCM:** GitHub (gh CLI), None
+* **TMS:** TestRail (REST), None
+
+### Testing Infrastructure
+
+* **Deterministic simulations:** 8 E2E flows with trace snapshots
+* **Profile conformance:** Client/team config validation
+* **Live checks:** Optional auth + network validation
 
 ---
 

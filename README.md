@@ -12,9 +12,9 @@ Changelog: `CHANGELOG.md`
 - **Tracker backends:** Atlassian (Jira), GitHub Issues, Linear, Standalone (fake/offline).
 - **Docs providers (optional):** repo-backed Markdown (`docs.provider="repo"`, default), Atlassian (Confluence), or disabled (`none`).
 - **SCM providers:** GitHub PR workflow via `gh` (optional) or disabled (`none`).
-- **Stable capability tools for agents:** `tracker.*`, `docs.*`, `scm.*`, `workflow.*` via local Agency MCP.
-- **Test management (optional):** `tms.*` with configurable provider (default: disabled).
-- **Deterministic conformance:** simulations + trace snapshots for regression protection.
+- **Stable capability tools for agents:** `tracker.*`, `docs.*`, `scm.*`, `workflow.*`, `tms.*` via local Agency MCP.
+- **Test management (optional):** `tms.*` with TestRail backend (default: disabled).
+- **Deterministic conformance:** 8 simulated E2E flows + trace snapshots for regression protection.
 
 ## What Needs To Happen Next
 
@@ -253,9 +253,9 @@ The platform uses a layered configuration system that merges settings from multi
 
 ### Tracker Modes
 
-- `atlassian` - Jira integration (default). Uses Atlassian Cloud REST APIs behind the Agency tools by default.
-- `github` - GitHub Issues workflow. Uses `gh` behind the Agency tools.
-- `linear` - Linear Issues workflow. Uses Linear GraphQL API behind the Agency tools.
+- `atlassian` - Jira integration (default). Uses Atlassian Cloud REST APIs.
+- `github` - GitHub Issues workflow. Uses `gh` CLI.
+- `linear` - Linear Issues workflow. Uses Linear GraphQL API.
 - `standalone` - No external tracker; workflows can run offline using the fake backend for testing.
 
 ### Linear Setup Notes
@@ -292,8 +292,8 @@ Configure that per-repo with:
 
 Atlassian supports two backend modes:
 
-- `tracker.atlassian.backend = "api"` (default): uses Jira REST APIs.
-- `tracker.atlassian.backend = "mcp"`: uses `mcp-remote` with `tracker.atlassian.mcp_url`.
+- `tracker.atlassian.backend = "api"` (default): uses Jira/Confluence REST APIs directly.
+- `tracker.atlassian.backend = "mcp"`: uses `mcp-remote` with `tracker.atlassian.mcp_url` (experimental).
 
 ### Configuration CLI
 
@@ -309,6 +309,9 @@ node .agency/scripts/config.js --generate
 
 # Generate OpenCode presets (multiple opencode.<preset>.jsonc files + OPENCODE_PRESETS.md)
 node .agency/scripts/config.js --generate --presets
+
+# List available presets
+./.agency/bin/agency presets
 ```
 
 ### Environment Variable Overrides
@@ -349,9 +352,12 @@ Output includes:
 
 This platform exposes a stable, vendor-agnostic tool surface to agents via a local MCP server:
 
-- Tracker tools: `tracker.search`, `tracker.get`, `tracker.comment`, `tracker.transition`, `tracker.set_labels`
-- Docs tools: `docs.create`, `docs.get`, `docs.update`
-- SCM tools: `scm.pr_create`, `scm.pr_get`, `scm.pr_comment`, `scm.pr_set_labels`, `scm.pr_link_ticket`
+- **Tracker tools:** `tracker.search`, `tracker.get`, `tracker.comment`, `tracker.transition`, `tracker.set_labels`
+- **Docs tools:** `docs.create`, `docs.get`, `docs.update`
+- **SCM tools:** `scm.pr_create`, `scm.pr_get`, `scm.pr_comment`, `scm.pr_set_labels`, `scm.pr_link_ticket`
+- **Workflow tools:** `workflow.queue`, `workflow.gate_status`, `workflow.summary`, `workflow.apply`, `workflow.sync_plan_review`
+- **TMS tools:** `tms.suite_ensure`, `tms.case_create`
+- **Capabilities:** `capabilities.get`
 
 The `opencode.jsonc` generator enables this MCP server automatically via `mcp.agency`.
 
@@ -363,52 +369,119 @@ For debugging or scripting, you can also call the same capabilities via the CLI:
 node .agency/scripts/agency.js tracker search --label ai-state:ready-for-plan --json
 ```
 
+## Agency CLI (`./.agency/bin/agency`)
+
+Team-friendly commands for day-to-day operations:
+
+```bash
+# Initialize host repo configuration
+./.agency/bin/agency init --mode atlassian  # or: github | linear | standalone
+
+# Generate/regenerate opencode.jsonc
+./.agency/bin/agency generate
+
+# Generate all OpenCode presets
+./.agency/bin/agency generate --presets
+
+# List available presets
+./.agency/bin/agency presets
+
+# Run sanity checks (offline)
+./.agency/bin/agency doctor
+
+# Run conformance tests
+./.agency/bin/agency test                          # Full test suite
+./.agency/bin/agency test --profile <profile-path> # Profile conformance
+
+# Print required workflow labels
+./.agency/bin/agency labels --mode atlassian       # or: github | linear | standalone
+
+# Show "what's next" queue (live, requires tracker access)
+./.agency/bin/agency next --label ai-state:ready-for-plan --limit 10
+
+# Show ticket summary with gate status (live)
+./.agency/bin/agency open --id JIRA-123
+
+# Approve a spec (docs provider)
+./.agency/bin/agency spec approve --id <specId>
+```
+
 ## Testing & Conformance
 
 For maintainability and safe client customization, this repository includes deterministic, network-free end-to-end simulations and trace snapshots.
 
-Host repo checks:
+**Simulated Flows (8 total):**
+- `planning` - ready-for-plan → plan-review
+- `pm-sync` - Sync spec approval to tracker labels
+- `dev-complete` - approved → in-qa (with SCM PR creation)
+- `qa-verify` - in-qa → verified (or back to approved on fail)
+- `review` - verified → reviewed (or back to approved on fail)
+- `security-audit` - verified → security-pass/fail
+- `release` - All gates pass → Done
+- `scm-pr` - PR creation/linking flow
 
-1. `./.agency/bin/agency doctor`
-2. `./.agency/bin/agency generate`
-
-Profile conformance tests (client/team config):
+**Host repo checks:**
 
 ```bash
+# Offline sanity checks
+./.agency/bin/agency doctor
+
+# Regenerate opencode.jsonc
+./.agency/bin/agency generate
+
+# Profile conformance tests (client/team config)
 ./.agency/bin/agency test --profile .agency/profiles/atlassian
 ```
 
-Client profile template:
-
+**Client profile template:**
 - `.agency/profiles/_template/`
 
-Developing `.agency` itself:
+**Developing `.agency` itself:**
 
-1. `npm test`
-2. Update trace snapshots when changes are intentional: `npm run test:update-traces`
+```bash
+# Run full test suite (unit + simulated E2E)
+npm test
 
-Optional live checks (real auth + network):
+# Update trace snapshots when changes are intentional
+npm run test:update-traces
+```
 
-1. `AGENCY_DOCTOR_LIVE=1 ./.agency/bin/agency doctor`
-2. Live E2E (manual/nightly, requires `AGENCY_LIVE_E2E=1`): `node .agency/scripts/live-e2e/run.js`
+**Optional live checks (real auth + network):**
 
-Agent-run E2E (OpenCode smoke test):
+```bash
+# Live doctor (validates tools, auth, labels)
+AGENCY_DOCTOR_LIVE=1 ./.agency/bin/agency doctor
 
-- `npm run e2e:agent` (requires OpenCode installed + model/provider access; uses fake backend; gated)
+# Live E2E (manual/nightly, requires AGENCY_LIVE_E2E=1)
+node .agency/scripts/live-e2e/run.js
+```
+
+**Agent-run E2E (OpenCode smoke test):**
+
+```bash
+# Gated: requires OpenCode installed + model/provider access
+npm run e2e:agent
+```
 
 ## Workflow Contract (Portable)
 
-Portable state machine (labels):
+**Portable state machine (labels):**
 
-- `ai-state:ready-for-plan`
-- `ai-state:plan-review`
-- `ai-state:approved`
-- `ai-state:in-qa`
-- `ai-state:verified`
-- `ai-state:reviewed` / `ai-state:review-fail`
-- `ai-state:security-pass` / `ai-state:security-fail`
+```text
+ready-for-plan
+→ plan-review
+→ approved
+→ in-qa
+→ verified
+   ├─→ reviewed / review-fail       (Code Reviewer Agent)
+   └─→ security-pass / security-fail (Security Engineer Agent, optional)
+→ release                       (Project Manager Agent)
+```
 
-Status transitions are treated as best-effort. Status names differ across projects; the prompts prioritize labels as the portable mechanism.
+**Notes:**
+- Status transitions are treated as best-effort. Status names differ across projects; the prompts prioritize labels as the portable mechanism.
+- Review and Security audits both start from `verified` and can run in parallel.
+- Release requires: `verified` + `reviewed` + `security-pass` (if `config.workflow.gates.security_audit=true`).
 
 ### Required Labels (Preflight)
 

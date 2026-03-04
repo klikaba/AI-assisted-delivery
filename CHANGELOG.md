@@ -10,9 +10,15 @@ This project follows Semantic Versioning (SemVer) with the caveat that `0.x` rel
 
 ## 0.7.0 - 2026-02-05
 
-- Add workflow UX tools: `workflow.queue`, `workflow.summary`, `workflow.gate_status`, `workflow.apply`, `workflow.sync_plan_review`.
-- Add modular OpenCode presets generation (`opencode.<preset>.jsonc`) and `OPENCODE_PRESETS.md`.
-- Add optional Test Management integration (`tms.*`) with TestRail backend and strict QA evidence gating (`TestCases: ...`).
+### Added
+- Workflow UX tools: `workflow.queue`, `workflow.summary`, `workflow.gate_status`, `workflow.apply`, `workflow.sync_plan_review`
+- Modular OpenCode presets generation (`opencode.<preset>.jsonc`) and `OPENCODE_PRESETS.md`
+- Optional Test Management integration (`tms.*`) with TestRail backend and strict QA evidence gating (`TestCases: ...`)
+- Agency CLI commands: `next`, `open`, `spec approve`, `labels`, `presets`
+
+### Changed
+- Default docs provider changed to `repo` (Markdown files under `docs/agency/`)
+- Documentation improvements for CLI usage and testing
 
 ## 0.6.0 - 2026-02-04
 

@@ -12,9 +12,22 @@ Workflow and QA automation release.
 
 Highlights:
 
-- New workflow UX tools (OpenCode-first): `workflow.queue`, `workflow.summary`, `workflow.gate_status`, `workflow.apply`, `workflow.sync_plan_review`.
-- Modular OpenCode presets: generate `opencode.<preset>.jsonc` files and `OPENCODE_PRESETS.md`.
-- Optional Test Management integration (`tms.*`) with configurable provider (default disabled) and TestRail backend support.
+- New workflow UX tools (OpenCode-first): `workflow.queue`, `workflow.summary`, `workflow.gate_status`, `workflow.apply`, `workflow.sync_plan_review`
+- Modular OpenCode presets: generate `opencode.<preset>.jsonc` files and `OPENCODE_PRESETS.md`
+- Optional Test Management integration (`tms.*`) with configurable provider (default disabled) and TestRail backend support
+- New Agency CLI commands: `next` (queue view), `open` (ticket summary), `spec approve`, `labels`, `presets`
+
+### Migration Notes
+
+- No breaking changes
+- Default docs provider is now `repo` (Markdown files) instead of requiring Confluence
+- All existing configurations remain compatible
+
+### Documentation
+
+- Expanded CLI usage examples in README.md
+- Added capability surface documentation
+- Updated testing infrastructure docs
 
 ## 0.6.0
 
