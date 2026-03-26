@@ -1,16 +1,31 @@
 # Enterprise Agentic Delivery Platform (.agency)
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![npm test](https://img.shields.io/badge/test-deterministic-green.svg)](test/)
+[![Test](https://img.shields.io/badge/test-deterministic-green.svg)](test/)
+[![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-Current version: see `VERSION` (git tag: `v<version>`).
+**v1.0.0** | Portable, role-based Agentic SDLC for any host repository
 
-This repository provides a portable, role-based Agentic SDLC configuration designed to be installed into any host repository as a git submodule mounted at `.agency/`.
+This repository provides a governed AI agent workflow configuration designed to be installed into any host repository as a git submodule at `.agency/`.
 
-**Built using the Klika AI Engineering Toolkit** | https://github.com/klikaba/AI-assisted-delivery
+**Built using the Klika AI Engineering Toolkit** | [View on GitHub](https://github.com/klikaba/AI-assisted-delivery)
 
-Release notes: `RELEASE_NOTES.md`  
-Changelog: `CHANGELOG.md`
+---
+
+## Quickstart
+
+```bash
+git submodule add https://github.com/klikaba/AI-assisted-delivery.git .agency
+git submodule update --init --recursive
+./.agency/bin/agency init --mode atlassian  # or: github | linear | standalone
+git add .agency-project.json .agency-rules.md .gitignore
+git commit -m "chore: configure .agency"
+opencode --config opencode.jsonc
+```
+
+**Stuck?** Run `./.agency/bin/agency doctor` or read the [full guide](#install) below.
+
+---
 
 ## Current State (What Works Today)
 
@@ -122,7 +137,7 @@ This repo is not an “agent that runs your SDLC automatically”. It’s a **po
 From your host repository root:
 
 ```bash
-git submodule add <THIS_REPO_URL> .agency
+git submodule add https://github.com/klikaba/AI-assisted-delivery.git .agency
 git submodule update --init --recursive
 ```
 
@@ -561,3 +576,21 @@ Common variables:
 - Confluence docs provider (only when `docs.provider="atlassian"`): `CONFLUENCE_SPACE_KEY` (and optionally `CONFLUENCE_BASE_URL`)
 - Linear tracker: `LINEAR_API_KEY` (or `LINEAR_ACCESS_TOKEN`)
 - TestRail (only when `tms.provider="testrail"` / `AGENCY_TMS_PROVIDER=testrail`): `TESTRAIL_HOST`, `TESTRAIL_USERNAME`, `TESTRAIL_API_KEY`, `TESTRAIL_PROJECT_ID` (optional: `TESTRAIL_SUITE_ID`, `TESTRAIL_SECTION_ID`)
+
+---
+
+## Community & Support
+
+- **Issues:** [Report a bug](https://github.com/klikaba/AI-assisted-delivery/issues/new?template=bug_report.yml) or [request a feature](https://github.com/klikaba/AI-assisted-delivery/issues/new?template=feature_request.yml)
+- **Security:** Report vulnerabilities to [contact@klika.ba](.github/SECURITY.md)
+- **Contributing:** See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
+- **License:** Apache 2.0 with attribution requirement (see [LICENSE](LICENSE) and [NOTICE](NOTICE))
+
+### Want to Contribute?
+
+We welcome contributions! Good first areas:
+- **New adapters:** GitLab, Bitbucket, Azure DevOps
+- **UX improvements:** Queue views, better Spec/Plan/PR linking
+- **Testing:** More conformance profiles and edge cases
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
