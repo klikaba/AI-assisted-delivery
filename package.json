@@ -1,6 +1,14 @@
 {
   "name": "agency-platform",
-  "private": true,
+  "version": "1.0.0",
+  "description": "Enterprise Agentic Delivery Platform - A portable, role-based Agentic SDLC configuration",
+  "license": "Apache-2.0",
+  "private": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/klikaba/AI-assisted-delivery.git"
+  },
+  "homepage": "https://github.com/klikaba/AI-assisted-delivery",
   "type": "commonjs",
   "scripts": {
     "agency": "node scripts/agency.js",

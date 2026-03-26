@@ -1,10 +1,15 @@
 # Enterprise Agentic Delivery Platform (.agency)
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![npm test](https://img.shields.io/badge/test-deterministic-green.svg)](test/)
+
 Current version: see `VERSION` (git tag: `v<version>`).
 
 This repository provides a portable, role-based Agentic SDLC configuration designed to be installed into any host repository as a git submodule mounted at `.agency/`.
 
-Release notes: `RELEASE_NOTES.md`
+**Built using the Klika AI Engineering Toolkit** | https://github.com/klikaba/AI-assisted-delivery
+
+Release notes: `RELEASE_NOTES.md`  
 Changelog: `CHANGELOG.md`
 
 ## Current State (What Works Today)
@@ -27,7 +32,7 @@ Changelog: `CHANGELOG.md`
 From your host repository root:
 
 ```bash
-git submodule add <THIS_REPO_URL> .agency
+git submodule add https://github.com/klikaba/AI-assisted-delivery.git .agency
 git submodule update --init --recursive
 
 ./.agency/bin/agency init --mode atlassian  # or: github | linear | standalone

@@ -1,0 +1,43 @@
+name: Adapter Request
+description: Request support for a new tracker, SCM, or docs provider
+labels: [enhancement, adapter]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Want to see support for a new adapter? Please fill out the details below.
+  - type: input
+    id: service
+    attributes:
+      label: Service Name
+      description: What service/tool do you want to integrate?
+      placeholder: e.g., GitLab, Bitbucket, Azure DevOps
+    validations:
+      required: true
+  - type: dropdown
+    id: type
+    attributes:
+      label: Adapter Type
+      description: Which type of adapter is this?
+      options:
+        - Tracker (Jira alternative)
+        - SCM (GitHub alternative)
+        - Docs Provider (Confluence alternative)
+        - Test Management (TestRail alternative)
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: API Documentation
+      description: Link to the service's API documentation.
+    validations:
+      required: true
+  - type: textarea
+    id: usecase
+    attributes:
+      label: Use Case
+      description: Why do you need this adapter? What's your use case?
+    validations:
+      required: true
