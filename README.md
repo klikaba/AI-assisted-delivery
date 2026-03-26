@@ -4,7 +4,7 @@
 [![Test](https://img.shields.io/badge/test-deterministic-green.svg)](test/)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-**v1.0.0** | Portable, role-based Agentic SDLC for any host repository
+**v0.7.0** | Portable, role-based Agentic SDLC for any host repository
 
 This repository provides a governed AI agent workflow configuration designed to be installed into any host repository as a git submodule at `.agency/`.
 
@@ -213,7 +213,7 @@ If `setup.sh` reports missing tools, you can still run setup and install the mis
 - `.agency/bin/agency`: team-friendly CLI (`init`, `generate`, `doctor`, `labels`, `test --profile`).
 - `.agency/scripts/config.js`: configuration engine.
 - `.agency/scripts/memory.js`: context engine.
-- `.agency/scripts/agency-mcp.js`: local MCP server exposing stable capability tools (`tracker.*`, `docs.*`, `capabilities.get`).
+- `.agency/scripts/agency-mcp.js`: local MCP server exposing stable capability tools (`tracker.*`, `docs.*`, `scm.*`, `workflow.*`, `tms.*`, `capabilities.get`).
 - `.agency/scripts/agency.js`: integration CLI (debugging/manual use; same capability surface).
 - `.agency/setup.sh`: setup wizard.
 

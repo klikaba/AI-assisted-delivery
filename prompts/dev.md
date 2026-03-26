@@ -22,7 +22,7 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
    - List the files you are about to modify.
    - **STOP** and ask: "I am about to implement changes to these files. Proceed?"
 5. **Execution:**
-    - Ensure Jira status is `In Progress` (if your Jira workflow supports this status; otherwise skip).
+   - Ensure Jira status is `In Progress` (if your Jira workflow supports this status; otherwise skip).
    - Implement -> Lint.
    - **Commit Protocol:** 
      - You MUST prefix the commit message with the Jira Ticket ID.

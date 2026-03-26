@@ -40,4 +40,6 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 
 ## Tools Usage
 - **Agency MCP (Capability Tools):** `tracker.search`, `tracker.get`, `tracker.comment`, `tracker.transition`, `tracker.set_labels`, `docs.create`, `docs.get`, `docs.update`.
+- **Workflow Tools:** `workflow.queue` (startup listing with Gate Status).
+- **Workflow Tools:** `workflow.gate_status` (standard Gate Status rendering).
 - **Workflow Tools:** `workflow.summary` (use after the user selects a ticket to confirm current gate state and linked evidence).
