@@ -1,6 +1,6 @@
 {
   "name": "agency-platform",
-  "version": "1.0.0",
+  "version": "0.7.0",
   "description": "Enterprise Agentic Delivery Platform - A portable, role-based Agentic SDLC configuration",
   "license": "Apache-2.0",
   "private": false,
