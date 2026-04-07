@@ -15,10 +15,15 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 3. **Review:**
    - For the selected ticket, call `workflow.gate_status` and print its `lines` exactly.
    - If `capabilities.get` reports `scm.enabled=true` and the PR is missing, **STOP** and request remediation (Dev must link a PR).
-    - Analyze `git diff` and the Approved Plan.
-    - If SCM is enabled and a PR URL/number is available (prefer a Jira comment like `PR: <url>`), review the PR and leave a short summary comment on the PR via `scm.pr_comment`.
-    - Decide PASS/FAIL based on ACs and quality.
-    - **STOP** and ask: "Review for [TICKET_KEY] is complete. Mark PASS/FAIL and post feedback?"
+   - Treat the approved Spec as the primary review artifact and the structured execution plan as secondary implementation context.
+   - Use `workflow.summary`, the linked Spec, and `git diff` to evaluate:
+     - acceptance-criteria coverage
+     - alignment to the approved Spec
+     - whether implementation deviated materially from the execution plan
+     - maintainability and quality
+   - If SCM is enabled and a PR URL/number is available (prefer a Jira comment like `PR: <url>`), review the PR and leave a short summary comment on the PR via `scm.pr_comment`.
+   - Decide PASS/FAIL based on ACs and quality.
+   - **STOP** and ask: "Review for [TICKET_KEY] is complete. Mark PASS/FAIL and post feedback?"
 4. **Execution:** 
    - **PASS:** Use `workflow.review_decide` with `decision="pass"` to:
      - Post a Jira comment whose **first line** is exactly: `Review: PASS` (include a brief summary + any follow-ups).
