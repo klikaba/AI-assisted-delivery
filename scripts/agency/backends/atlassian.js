@@ -485,9 +485,7 @@ function normalizeIssue(jiraBase, issue) {
   const labels = Array.isArray(fields.labels) ? fields.labels.map(String).sort() : [];
   const status = fields.status && fields.status.name ? String(fields.status.name) : null;
   const title = fields.summary ? String(fields.summary) : '';
-
-  // Jira description is in Atlassian Document Format for Cloud; we keep it as JSON string for now.
-  const body = fields.description ? JSON.stringify(fields.description) : '';
+  const body = fields.description ? adfToText(fields.description) : '';
 
   return {
     id: String(issue.id || issue.key),
@@ -808,6 +806,7 @@ module.exports = {
     coerceAdfDoc,
     coerceStorageSourceBody,
     adfToText,
+    normalizeIssue,
     renderStorageHtml,
     extractSpecStatusFromStorage,
     escapeCdata,
