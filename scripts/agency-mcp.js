@@ -895,13 +895,17 @@ async function callTool(name, args) {
     const strict = args?.strict !== undefined ? Boolean(args.strict) : true;
     const actions = Array.isArray(args?.actions) ? args.actions : [];
     if (actions.length === 0) throw new Error('workflow.apply requires non-empty actions');
-    const commentActions = actions.filter((a) => a && typeof a === 'object' && String(a.type || '') === 'comment');
+    const normalizeActionType = (value) => {
+      const raw = String(value || '');
+      return raw === 'labels' ? 'set_labels' : raw;
+    };
+    const commentActions = actions.filter((a) => a && typeof a === 'object' && normalizeActionType(a.type) === 'comment');
     if (strict && commentActions.length > 1) {
       throw new Error('workflow.apply strict mode: only one comment action is allowed');
     }
     if (strict && commentActions.length === 1) {
       const lastAction = actions[actions.length - 1];
-      if (!lastAction || String(lastAction.type || '') !== 'comment') {
+      if (!lastAction || normalizeActionType(lastAction.type) !== 'comment') {
         throw new Error('workflow.apply strict mode: the comment action must be the last action');
       }
     }
@@ -920,10 +924,11 @@ async function callTool(name, args) {
     let commentBodies = '';
     for (const a of actions) {
       if (!a || typeof a !== 'object') continue;
-      if (a.type === 'set_labels') {
+      const type = normalizeActionType(a.type);
+      if (type === 'set_labels') {
         for (const l of a.add || []) adds.push(String(l));
       }
-      if (a.type === 'comment') {
+      if (type === 'comment') {
         commentBodies += `\n${String(a.body || '')}\n`;
       }
     }
@@ -955,10 +960,23 @@ async function callTool(name, args) {
     const results = [];
     for (const a of actions) {
       if (!a || typeof a !== 'object') continue;
-      const type = String(a.type || '');
+      const type = normalizeActionType(a.type);
       if (type === 'comment') {
+        let existingComments = [];
+        try {
+          const item = await trackerBackend.tracker.get({ id });
+          existingComments = Array.isArray(item?.item?.comments) ? item.item.comments.map((c) => String(c).trim()) : [];
+        } catch {
+          existingComments = [];
+        }
+        const body = String(a.body || '');
+        const normalizedBody = body.trim();
+        if (normalizedBody && existingComments.includes(normalizedBody)) {
+          results.push({ type, ok: true, skipped: true, reason: 'duplicate_comment' });
+          continue;
+        }
         // eslint-disable-next-line no-await-in-loop
-        const r = await trackerBackend.tracker.comment({ id, body: String(a.body || '') });
+        const r = await trackerBackend.tracker.comment({ id, body });
         const ok = !(r && typeof r === 'object' && Object.prototype.hasOwnProperty.call(r, 'ok')) || Boolean(r.ok);
         results.push({ type, ok, result: r });
         if (!ok) {

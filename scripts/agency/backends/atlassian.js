@@ -209,6 +209,50 @@ function toAdfTextDoc(text) {
   };
 }
 
+function coerceAdfDoc(value) {
+  if (value && typeof value === 'object' && value.type === 'doc' && Array.isArray(value.content)) {
+    return value;
+  }
+
+  if (typeof value !== 'string') return toAdfTextDoc(String(value ?? ''));
+
+  const raw = value.trim();
+  if (raw.startsWith('{') || raw.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && parsed.type === 'doc' && Array.isArray(parsed.content)) {
+        return parsed;
+      }
+    } catch {
+      // Fall through to plain text wrapping.
+    }
+  }
+
+  return toAdfTextDoc(value);
+}
+
+function coerceStorageSourceBody(value) {
+  if (value && typeof value === 'object' && value.type === 'doc' && Array.isArray(value.content)) {
+    return adfToText(value);
+  }
+
+  if (typeof value !== 'string') return String(value ?? '');
+
+  const raw = value.trim();
+  if (raw.startsWith('{') || raw.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && parsed.type === 'doc' && Array.isArray(parsed.content)) {
+        return adfToText(parsed);
+      }
+    } catch {
+      // Fall through to plain text.
+    }
+  }
+
+  return value;
+}
+
 function toAdfInlineText(text) {
   const value = String(text || '');
   if (!value) return [];
@@ -566,7 +610,7 @@ async function tracker_update({ id, title, body }) {
 
   const fields = {};
   if (title !== undefined) fields.summary = String(title);
-  if (body !== undefined) fields.description = toAdfTextDoc(String(body));
+  if (body !== undefined) fields.description = coerceAdfDoc(body);
 
   const url = `${jiraBase}/rest/api/3/issue/${encodeURIComponent(String(id))}`;
   await atlassianFetch(url, {
@@ -636,7 +680,8 @@ async function docs_create({ title, body, status, parentId }) {
 
   const specStatus = normalizeSpecStatus(status);
   const confluenceStatus = specStatus === 'DRAFT' ? 'draft' : 'current';
-  const htmlBody = renderStorageHtml({ body, specStatus });
+  const sourceBody = coerceStorageSourceBody(body);
+  const htmlBody = renderStorageHtml({ body: sourceBody, specStatus });
 
   const payload = {
     type: 'page',
@@ -704,7 +749,7 @@ async function docs_update({ id, title, body, status, body_format }) {
 
   const nextSpecStatus = status !== undefined ? normalizeSpecStatus(status) : normalizeSpecStatus(existing.page.status);
   const confluenceStatus = nextSpecStatus === 'DRAFT' ? 'draft' : 'current';
-  const rawBody = body !== undefined ? String(body) : null;
+  const rawBody = body !== undefined ? coerceStorageSourceBody(body) : null;
   const htmlBody = body !== undefined
     ? (String(body_format || '') === 'storage'
       ? String(rawBody)
@@ -760,6 +805,8 @@ module.exports = {
   },
   __private: {
     toAdfCommentDoc,
+    coerceAdfDoc,
+    coerceStorageSourceBody,
     adfToText,
     renderStorageHtml,
     extractSpecStatusFromStorage,

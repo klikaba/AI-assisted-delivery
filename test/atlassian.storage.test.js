@@ -43,6 +43,32 @@ test('atlassian storage HTML escapes CDATA terminators inside code blocks', () =
   assert.match(html, /]]]]><!\[CDATA\[>/);
 });
 
+test('atlassian storage HTML coerces serialized ADF bodies into readable text', () => {
+  const raw = JSON.stringify({
+    type: 'doc',
+    version: 1,
+    content: [
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: 'Problem:\nReconnect escalation is manual.' }]
+      },
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: 'Acceptance criteria:' }]
+      }
+    ]
+  });
+
+  const html = atlassian.__private.renderStorageHtml({
+    body: atlassian.__private.coerceStorageSourceBody(raw),
+    specStatus: 'DRAFT'
+  });
+
+  assert.doesNotMatch(html, /\{"type":"doc"/);
+  assert.match(html, /Reconnect escalation is manual\./);
+  assert.match(html, /Acceptance criteria:/);
+});
+
 test('atlassian docs create and update send formatted storage HTML payloads', async () => {
   const originalEnv = {
     ATLASSIAN_SITE: process.env.ATLASSIAN_SITE,
@@ -142,6 +168,69 @@ test('atlassian docs create and update send formatted storage HTML payloads', as
     assert.match(updateHtml, /<h2>Updated<\/h2>/);
     assert.match(updateHtml, /ac:parameter ac:name="language">xml<\/ac:parameter>/);
     assert.match(updateHtml, /]]]]><!\[CDATA\[>/);
+  } finally {
+    global.fetch = originalFetch;
+    process.env.ATLASSIAN_SITE = originalEnv.ATLASSIAN_SITE;
+    process.env.ATLASSIAN_EMAIL = originalEnv.ATLASSIAN_EMAIL;
+    process.env.ATLASSIAN_API_TOKEN = originalEnv.ATLASSIAN_API_TOKEN;
+    process.env.CONFLUENCE_SPACE_KEY = originalEnv.CONFLUENCE_SPACE_KEY;
+  }
+});
+
+test('atlassian docs create coerces serialized ADF body before sending storage HTML', async () => {
+  const originalEnv = {
+    ATLASSIAN_SITE: process.env.ATLASSIAN_SITE,
+    ATLASSIAN_EMAIL: process.env.ATLASSIAN_EMAIL,
+    ATLASSIAN_API_TOKEN: process.env.ATLASSIAN_API_TOKEN,
+    CONFLUENCE_SPACE_KEY: process.env.CONFLUENCE_SPACE_KEY
+  };
+  const originalFetch = global.fetch;
+
+  process.env.ATLASSIAN_SITE = 'https://example.atlassian.net';
+  process.env.ATLASSIAN_EMAIL = 'demo@example.test';
+  process.env.ATLASSIAN_API_TOKEN = 'token';
+  process.env.CONFLUENCE_SPACE_KEY = 'SD';
+
+  const requests = [];
+  global.fetch = async (url, options = {}) => {
+    requests.push({ url: String(url), options });
+    if (String(url).endsWith('/rest/api/content') && options.method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: { get: () => null },
+        text: async () => JSON.stringify({
+          id: '1002',
+          title: 'Spec: SCRUM-8',
+          _links: { base: 'https://example.atlassian.net/wiki', webui: '/spaces/SD/pages/1002' }
+        })
+      };
+    }
+    throw new Error(`Unexpected fetch: ${String(url)} ${String(options.method || 'GET')}`);
+  };
+
+  try {
+    await atlassian.docs.create({
+      title: 'Spec: SCRUM-8',
+      status: 'DRAFT',
+      body: JSON.stringify({
+        type: 'doc',
+        version: 1,
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Problem:\nOutdated devices are not clearly prioritized.' }]
+          }
+        ]
+      })
+    });
+
+    const createReq = requests.find((r) => r.url.endsWith('/rest/api/content') && r.options.method === 'POST');
+    const createPayload = JSON.parse(String(createReq.options.body));
+    const createHtml = createPayload.body.storage.value;
+    assert.doesNotMatch(createHtml, /\{"type":"doc"/);
+    assert.match(createHtml, /Outdated devices are not clearly prioritized\./);
   } finally {
     global.fetch = originalFetch;
     process.env.ATLASSIAN_SITE = originalEnv.ATLASSIAN_SITE;

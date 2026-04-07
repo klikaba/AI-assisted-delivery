@@ -887,6 +887,135 @@ test('agency mcp: workflow.apply strict mode allows only one final comment actio
   }
 });
 
+test('agency mcp: workflow.apply accepts labels as alias for set_labels (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' },
+    scm: { provider: 'none' }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        {
+          id: 'ABC-41',
+          key: 'ABC-41',
+          title: 'Workflow labels alias test',
+          labels: ['ai-state:approved'],
+          comments: []
+        }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const ok = await client.request('tools/call', {
+      name: 'workflow.apply',
+      arguments: {
+        id: 'ABC-41',
+        strict: true,
+        actions: [
+          { type: 'labels', remove: ['ai-state:approved'], add: ['ai-state:in-qa'] },
+          { type: 'comment', body: 'single final comment' }
+        ]
+      }
+    });
+    const payload = toolPayload(ok);
+    assert.equal(payload.ok, true);
+
+    const item = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-41' } });
+    const itemPayload = toolPayload(item);
+    assert.ok(itemPayload.item.labels.includes('ai-state:in-qa'));
+    assert.ok(!itemPayload.item.labels.includes('ai-state:approved'));
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.apply skips duplicate final comments across retries (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' },
+    scm: { provider: 'none' }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        {
+          id: 'ABC-42',
+          key: 'ABC-42',
+          title: 'Workflow duplicate comment test',
+          labels: ['ai-state:approved'],
+          comments: []
+        }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const first = await client.request('tools/call', {
+      name: 'workflow.apply',
+      arguments: {
+        id: 'ABC-42',
+        strict: true,
+        actions: [
+          { type: 'labels', remove: ['ai-state:approved'], add: ['ai-state:in-qa'] },
+          { type: 'comment', body: 'Implementation Complete:\nFiles changed: src/app.js' }
+        ]
+      }
+    });
+    assert.equal(toolPayload(first).ok, true);
+
+    const second = await client.request('tools/call', {
+      name: 'workflow.apply',
+      arguments: {
+        id: 'ABC-42',
+        strict: true,
+        actions: [
+          { type: 'labels', remove: [], add: [] },
+          { type: 'comment', body: 'Implementation Complete:\nFiles changed: src/app.js' }
+        ]
+      }
+    });
+    const secondPayload = toolPayload(second);
+    assert.equal(secondPayload.ok, true);
+    assert.equal(secondPayload.results[1].skipped, true);
+    assert.equal(secondPayload.results[1].reason, 'duplicate_comment');
+
+    const item = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-42' } });
+    const itemPayload = toolPayload(item);
+    assert.equal(itemPayload.item.comments.length, 1);
+    assert.equal(itemPayload.item.comments[0], 'Implementation Complete:\nFiles changed: src/app.js');
+  } finally {
+    proc.kill();
+  }
+});
+
 test('agency mcp: workflow.sync_plan_review can dry-run and apply (fake)', async () => {
   const hostRoot = mkTempHost();
   writeJson(path.join(hostRoot, '.agency-project.json'), {
