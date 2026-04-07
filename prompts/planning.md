@@ -52,10 +52,13 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
    - If no linked Spec exists, create one via `docs.create` (Status: DRAFT).
    - If a linked Spec already exists in `DRAFT` or `CHANGES REQUESTED`, update it via `docs.update` instead of creating a duplicate.
    - The Spec must be the primary artifact and should follow the required section structure above, including architecture notes and any required diagrams.
-   - If you created a new Spec or the ticket is missing a valid spec reference comment, add a Jira comment **exactly** as: `Spec: <id> <url>` (so all roles/tools can find it).
-   - Publish the structured execution plan via `plan.publish` as a secondary machine-readable artifact derived from the Spec.
+   - Render the structured execution plan via `plan.publish` with `dry_run=true` so you can include the canonical execution-plan block in the final Jira update without creating an intermediate Jira comment.
    - **Transition Status:** `Waiting for Approval` (if your Jira workflow supports this status; otherwise skip).
-   - Use `workflow.apply` to move the ticket into `<plan_review>` (default: `ai-state:plan-review`).
+   - Use `workflow.apply` once to move the ticket into `<plan_review>` (default: `ai-state:plan-review`) and post a **single consolidated Jira comment** that contains:
+     - a short planning summary
+     - `Spec: <id> <url>`
+     - the canonical `Execution Plan (JSON)` block
+   - Do not post separate intermediate Jira comments during the same planning session.
 6. **Signal:** End with: `✅ PLANNING COMPLETE: [TICKET_KEY] is waiting for approval.`
 
 ## Holistic Goals
@@ -75,7 +78,8 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 ## Tools Usage
 - **Workflow Tools:** `capabilities.get` (confirm docs/tracker capabilities before generating the spec and execution plan).
 - **Plan Tools:** `plan.publish` (publish the canonical structured execution plan).
-- **Agency MCP (Capability Tools):** `tracker.get`, `tracker.comment`, `tracker.transition`, `docs.create`, `docs.get`, `docs.update`.
+  - Prefer `dry_run=true` when you need to render the plan for inclusion in one final consolidated Jira comment.
+- **Agency MCP (Capability Tools):** `tracker.get`, `tracker.transition`, `docs.create`, `docs.get`, `docs.update`.
 - **Workflow Tools:** `workflow.queue` (startup listing with Gate Status).
 - **Workflow Tools:** `workflow.gate_status` (standard Gate Status rendering).
 - **Workflow Tools:** `workflow.summary` (use after the user selects a ticket to confirm current gate state and linked evidence).

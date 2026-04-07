@@ -573,6 +573,7 @@ async function callTool(name, args) {
 
     const ticketId = args?.id ? String(args.id) : '';
     if (!ticketId) throw new Error('plan.publish requires id');
+    const dryRun = args?.dry_run !== undefined ? Boolean(args.dry_run) : false;
     const plan = args?.plan;
     const validation = validatePlan(plan);
     if (!validation.ok) throw new Error(`plan.publish invalid plan: ${validation.errors.join('; ')}`);
@@ -580,11 +581,14 @@ async function callTool(name, args) {
       throw new Error(`plan.publish ticket mismatch: plan.ticket.id=${String(plan?.ticket?.id || '')} does not match target id=${ticketId}`);
     }
     const body = `Execution Plan (JSON)\n\n\`\`\`json\n${JSON.stringify(plan, null, 2)}\n\`\`\``;
-    await trackerBackend.tracker.comment({ id: ticketId, body });
+    if (!dryRun) {
+      await trackerBackend.tracker.comment({ id: ticketId, body });
+    }
     return {
       version: '1.0',
       ticket: { id: ticketId },
-      published: true,
+      dry_run: dryRun,
+      published: !dryRun,
       plan,
       body
     };
@@ -823,6 +827,16 @@ async function callTool(name, args) {
     const strict = args?.strict !== undefined ? Boolean(args.strict) : true;
     const actions = Array.isArray(args?.actions) ? args.actions : [];
     if (actions.length === 0) throw new Error('workflow.apply requires non-empty actions');
+    const commentActions = actions.filter((a) => a && typeof a === 'object' && String(a.type || '') === 'comment');
+    if (strict && commentActions.length > 1) {
+      throw new Error('workflow.apply strict mode: only one comment action is allowed');
+    }
+    if (strict && commentActions.length === 1) {
+      const lastAction = actions[actions.length - 1];
+      if (!lastAction || String(lastAction.type || '') !== 'comment') {
+        throw new Error('workflow.apply strict mode: the comment action must be the last action');
+      }
+    }
 
     const trackerBackendId = selectBackend('tracker', mode, config);
     const trackerBackend = loadBackend('tracker', trackerBackendId);
@@ -932,15 +946,15 @@ async function callTool(name, args) {
       if (userComment) commentLines.push('', userComment);
 
       actions = [
-        { type: 'comment', body: commentLines.join('\n') },
         {
           type: 'set_labels',
           remove: [labelInQa],
           add: decision === 'pass' ? [labelVerified] : [labelApproved]
-        }
+        },
+        { type: 'comment', body: commentLines.join('\n') }
       ];
       if (decision === 'fail' || requestedStatus) {
-        actions.push({ type: 'transition', status: requestedStatus || 'In Progress' });
+        actions.unshift({ type: 'transition', status: requestedStatus || 'In Progress' });
       }
       result = { decision, from: labelInQa, to: decision === 'pass' ? labelVerified : labelApproved };
     }
@@ -953,13 +967,13 @@ async function callTool(name, args) {
       if (userComment) commentLines.push('', userComment);
 
       actions = [
-        { type: 'comment', body: commentLines.join('\n') },
         decision === 'pass'
           ? { type: 'set_labels', remove: [labelReviewFail], add: [labelReviewed] }
-          : { type: 'set_labels', remove: [labelReviewed, labelVerified], add: [labelReviewFail, labelApproved] }
+          : { type: 'set_labels', remove: [labelReviewed, labelVerified], add: [labelReviewFail, labelApproved] },
+        { type: 'comment', body: commentLines.join('\n') }
       ];
       if (decision === 'fail' || requestedStatus) {
-        actions.push({ type: 'transition', status: requestedStatus || 'In Progress' });
+        actions.unshift({ type: 'transition', status: requestedStatus || 'In Progress' });
       }
       result = { decision, from: labelVerified, to: decision === 'pass' ? labelReviewed : labelApproved };
     }
@@ -972,13 +986,13 @@ async function callTool(name, args) {
       if (userComment) commentLines.push('', userComment);
 
       actions = [
-        { type: 'comment', body: commentLines.join('\n') },
         decision === 'pass'
           ? { type: 'set_labels', remove: [labelSecurityFail], add: [labelSecurityPass] }
-          : { type: 'set_labels', remove: [labelSecurityPass, labelVerified], add: [labelSecurityFail, labelApproved] }
+          : { type: 'set_labels', remove: [labelSecurityPass, labelVerified], add: [labelSecurityFail, labelApproved] },
+        { type: 'comment', body: commentLines.join('\n') }
       ];
       if (decision === 'fail' || requestedStatus) {
-        actions.push({ type: 'transition', status: requestedStatus || 'In Progress' });
+        actions.unshift({ type: 'transition', status: requestedStatus || 'In Progress' });
       }
       result = { decision, from: labelVerified, to: decision === 'pass' ? labelSecurityPass : labelApproved };
     }

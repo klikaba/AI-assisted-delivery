@@ -623,8 +623,8 @@ test('agency mcp: workflow.apply enforces strict QA/Review markers (fake)', asyn
       arguments: {
         id: 'ABC-200',
         actions: [
-          { type: 'comment', body: 'Some note' },
-          { type: 'set_labels', add: ['ai-state:verified'], remove: ['ai-state:in-qa'] }
+          { type: 'set_labels', add: ['ai-state:verified'], remove: ['ai-state:in-qa'] },
+          { type: 'comment', body: 'Some note' }
         ]
       }
     });
@@ -636,8 +636,8 @@ test('agency mcp: workflow.apply enforces strict QA/Review markers (fake)', asyn
       arguments: {
         id: 'ABC-200',
         actions: [
-          { type: 'comment', body: 'QA: PASS\nRan: npm test' },
-          { type: 'set_labels', add: ['ai-state:verified'], remove: ['ai-state:in-qa'] }
+          { type: 'set_labels', add: ['ai-state:verified'], remove: ['ai-state:in-qa'] },
+          { type: 'comment', body: 'QA: PASS\nRan: npm test' }
         ]
       }
     });
@@ -652,6 +652,85 @@ test('agency mcp: workflow.apply enforces strict QA/Review markers (fake)', asyn
     assert.equal(itemFirst.type, 'text');
     const itemPayload = toolPayload(item);
     assert.ok(itemPayload.item.labels.includes('ai-state:verified'));
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.apply strict mode allows only one final comment action (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' },
+    scm: { provider: 'none' }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        {
+          id: 'ABC-40',
+          key: 'ABC-40',
+          title: 'Strict workflow apply test',
+          labels: ['ai-state:approved'],
+          comments: []
+        }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const tooMany = await client.request('tools/call', {
+      name: 'workflow.apply',
+      arguments: {
+        id: 'ABC-40',
+        strict: true,
+        actions: [
+          { type: 'comment', body: 'first' },
+          { type: 'set_labels', remove: ['ai-state:approved'], add: ['ai-state:in-qa'] },
+          { type: 'comment', body: 'second' }
+        ]
+      }
+    });
+    assert.match(String(tooMany.error?.message || ''), /only one comment action is allowed/);
+
+    const notLast = await client.request('tools/call', {
+      name: 'workflow.apply',
+      arguments: {
+        id: 'ABC-40',
+        strict: true,
+        actions: [
+          { type: 'comment', body: 'not last' },
+          { type: 'set_labels', remove: ['ai-state:approved'], add: ['ai-state:in-qa'] }
+        ]
+      }
+    });
+    assert.match(String(notLast.error?.message || ''), /comment action must be the last action/);
+
+    const ok = await client.request('tools/call', {
+      name: 'workflow.apply',
+      arguments: {
+        id: 'ABC-40',
+        strict: true,
+        actions: [
+          { type: 'set_labels', remove: ['ai-state:approved'], add: ['ai-state:in-qa'] },
+          { type: 'comment', body: 'single final comment' }
+        ]
+      }
+    });
+    const payload = toolPayload(ok);
+    assert.equal(payload.ok, true);
   } finally {
     proc.kill();
   }
@@ -950,8 +1029,8 @@ test('agency mcp: workflow.apply requires TestCases marker when TMS is enabled (
       arguments: {
         id: 'ABC-500',
         actions: [
-          { type: 'comment', body: 'QA: PASS' },
-          { type: 'set_labels', add: ['ai-state:verified'], remove: ['ai-state:in-qa'] }
+          { type: 'set_labels', add: ['ai-state:verified'], remove: ['ai-state:in-qa'] },
+          { type: 'comment', body: 'QA: PASS' }
         ]
       }
     });
@@ -968,8 +1047,8 @@ test('agency mcp: workflow.apply requires TestCases marker when TMS is enabled (
       arguments: {
         id: 'ABC-500',
         actions: [
-          { type: 'comment', body: 'QA: PASS\nRan: npm test' },
-          { type: 'set_labels', add: ['ai-state:verified'], remove: ['ai-state:in-qa'] }
+          { type: 'set_labels', add: ['ai-state:verified'], remove: ['ai-state:in-qa'] },
+          { type: 'comment', body: 'QA: PASS\nRan: npm test' }
         ]
       }
     });
@@ -980,8 +1059,8 @@ test('agency mcp: workflow.apply requires TestCases marker when TMS is enabled (
       arguments: {
         id: 'ABC-500',
         actions: [
-          { type: 'comment', body: 'QA: PASS\nTestCases: TestRail suite=123 section=456 cases=C1001' },
-          { type: 'set_labels', add: ['ai-state:verified'], remove: ['ai-state:in-qa'] }
+          { type: 'set_labels', add: ['ai-state:verified'], remove: ['ai-state:in-qa'] },
+          { type: 'comment', body: 'QA: PASS\nTestCases: TestRail suite=123 section=456 cases=C1001' }
         ]
       }
     });

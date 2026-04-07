@@ -38,7 +38,7 @@ When the user asks to "Release" a verified ticket:
 5. **Signal:** `✅ RELEASE COMPLETE: [TICKET_KEY] is now closed.`
 
 ## Tools Usage
-- **Agency MCP (Capability Tools):** `tracker.search`, `tracker.get`, `tracker.comment`, `docs.get`, `docs.update`.
+- **Agency MCP (Capability Tools):** `tracker.search`, `tracker.get`, `docs.get`, `docs.update`.
 - **Workflow Tools:** `workflow.summary` (strict, role-agnostic gate checklist + evidence discovery).
 - **Workflow Tools:** `workflow.gate_status` (standard Gate Status rendering).
 - **Workflow Tools:** `workflow.queue` (startup listing with Gate Status).

@@ -42,14 +42,14 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
    - If `capabilities.get` reports `tms.enabled=true`, create test cases in the configured test repository:
      - Use `tms.suite_ensure` to determine where cases should live (suite/section).
      - Create cases via `tms.case_create` for each formal test case you want tracked in the external test repository, not merely one case per AC.
-     - Post a Jira comment whose **first line** is exactly: `TestCases: ...` with the created case ids.
-     - **STOP** and ask: "Test cases are saved in the test repository. Ready to implement automation in the repo?"
-   - If `tms.enabled=false`, document the planned test coverage in Jira before implementing automation.
+     - Do **not** post a separate Jira comment yet; carry the created case ids into the final QA decision comment.
+   - If `tms.enabled=false`, keep the planned test coverage in your staged QA notes and include the relevant coverage summary in the final QA decision comment.
    - Implement automated tests only for the cases marked for automation now.
    - Implement automated tests in the detected framework and run the relevant automated checks.
    - Record the commands executed and the result summary; include them in the final QA evidence comment.
    - **IF PASS:** Use `workflow.qa_decide` with `decision="pass"` to:
-     - Post a Jira comment whose **first line** is exactly: `QA: PASS` (include `TestCases: ...` either in this comment or ensure it already exists in Jira comments).
+     - Post a **single final Jira comment** whose **first line** is exactly: `QA: PASS`.
+     - Include `TestCases: ...` in that same final comment when TMS is enabled.
      - Include evidence of:
        - what was executed
        - what passed
@@ -57,7 +57,7 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
        - residual risks or uncovered areas
      - Remove label `<in_qa>`, add label `<verified>` (defaults: `ai-state:in-qa`, `ai-state:verified`). (Status remains `In QA`).
     - **IF FAIL:** Use `workflow.qa_decide` with `decision="fail"` to:
-     - Post a Jira comment whose **first line** is exactly: `QA: FAIL` (include failure details and next steps).
+     - Post a **single final Jira comment** whose **first line** is exactly: `QA: FAIL` (include failure details, next steps, and `TestCases: ...` when relevant).
      - Remove label `<in_qa>`, add label `<approved>` (defaults: `ai-state:in-qa`, `ai-state:approved`). Move Status back to `In Progress` (or your project's equivalent).
 6. **Signal:** End with: `✅ QA COMPLETE: [TICKET_KEY] - [PASS/FAIL]`
 
@@ -66,8 +66,8 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 2. **Test Case Authoring (TMS-aware):**
    - If a test management system is enabled, create test cases there via `tms.case_create`.
    - Create tracked cases from the test matrix, including edge and failure scenarios when they deserve independent coverage; do not collapse the matrix into exactly one case per AC.
-   - Post a Jira comment whose **first line** is exactly: `TestCases: <provider> <suite/section> <case ids>` (example: `TestCases: TestRail suite=123 section=456 cases=C1001,C1002`).
-   - If TMS is disabled, document the planned cases in Jira before implementing automation.
+   - Include `TestCases: <provider> <suite/section> <case ids>` in the final QA decision comment rather than posting a separate intermediate Jira comment.
+   - If TMS is disabled, keep the planned cases in the staged QA notes and include them in the final QA evidence comment when useful.
    - **STOP** and ask for approval before implementing automation.
 3. **Execution Strategy:** Prefer the lowest-cost layer that proves the behavior:
    - unit tests for isolated logic and rules
@@ -81,7 +81,7 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 ## Tools Usage
 - **Workflow Tools:** `capabilities.get` (detect whether SCM/TMS are enabled before requiring PR/TMS-backed flow).
 - **Plan Tools:** `plan.get` (load the canonical structured execution plan).
-- **Agency MCP (Capability Tools):** `tracker.get`, `tracker.comment`, `tracker.transition`, `docs.get`.
+- **Agency MCP (Capability Tools):** `tracker.get`, `tracker.transition`, `docs.get`.
 - **Workflow Tools:** `workflow.summary` (evidence discovery + AC/plan/spec context).
 - **Workflow Tools:** `workflow.gate_status` (standard Gate Status rendering).
 - **Workflow Tools:** `workflow.qa_decide` (QA-owned pass/fail transition with evidence enforcement).

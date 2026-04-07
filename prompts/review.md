@@ -41,7 +41,7 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 ## Tools Usage
 - **Workflow Tools:** `capabilities.get` (detect whether SCM is enabled before requiring PR-backed review).
 - **VCS:** `git diff`.
-- **Agency MCP (Capability Tools):** `tracker.comment`, `tracker.transition`, `scm.pr_get`, `scm.pr_comment`.
+- **Agency MCP (Capability Tools):** `tracker.transition`, `scm.pr_get`, `scm.pr_comment`.
 - **Workflow Tools:** `workflow.summary` (evidence discovery + strict gating).
 - **Workflow Tools:** `workflow.gate_status` (standard Gate Status rendering).
 - **Workflow Tools:** `workflow.review_decide` (review-owned pass/fail transition with evidence enforcement).

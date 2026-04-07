@@ -35,5 +35,5 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 - **Workflow Tools:** `workflow.summary` (evidence discovery + strict gating).
 - **Workflow Tools:** `workflow.gate_status` (standard Gate Status rendering).
 - **Workflow Tools:** `workflow.security_decide` (security-owned pass/fail transition with evidence enforcement).
-- **Agency MCP (Capability Tools):** `tracker.comment`, `tracker.transition`.
+- **Agency MCP (Capability Tools):** `tracker.transition`.
 - **Memory:** `node .agency/scripts/memory.js (or node scripts/memory.js when developing .agency)` (Security policies).

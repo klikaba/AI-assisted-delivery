@@ -40,12 +40,13 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
    - **PR Protocol (If `capabilities.get` reports `scm.enabled=true`):**
      - Open a Pull Request via `scm.pr_create` with title prefixed by the ticket key (e.g., `DEMO-1: ...`).
      - Link the ticket via `scm.pr_link_ticket`.
-     - Comment on Jira with the PR URL **exactly** as: `PR: <url>` (so QA/Review/tools can find it).
-   - Use `workflow.apply` to move the ticket to `<in_qa>` (default: `ai-state:in-qa`).
-   - In the implementation-complete Jira comment, include:
+   - Use `workflow.apply` once to move the ticket to `<in_qa>` (default: `ai-state:in-qa`) and post a **single consolidated Jira comment**.
+   - In that final implementation-complete Jira comment, include:
+     - `PR: <url>` when SCM is enabled
      - files changed
      - checks run
      - any notable deviations from the plan
+   - Do not post separate intermediate Jira comments during the same implementation session.
    - **Transition Status:** `In QA` (if your Jira workflow supports this status; otherwise skip).
 7. **Signal:** End with: `✅ BUILD COMPLETE: [TICKET_KEY] is ready for QA.`
 
@@ -67,12 +68,12 @@ Before you write a single line of code for a ticket, you MUST:
 5. **State Transition:**
    - Remove label `<approved>` (default: `ai-state:approved`).
    - Add label `<in_qa>` (default: `ai-state:in-qa`).
-   - Comment on Jira with a short implementation summary plus the checks run and pass/fail result.
+   - Post one final Jira comment with the implementation summary plus the checks run and pass/fail result.
 
 ## Tools Usage
 - **Workflow Tools:** `capabilities.get` (detect whether SCM is enabled before requiring branch/PR flow).
 - **Plan Tools:** `plan.get` (load the canonical structured execution plan).
-- **Agency MCP (Capability Tools):** `tracker.get`, `tracker.comment`, `tracker.transition`, `docs.get`, `scm.pr_create`, `scm.pr_link_ticket`.
+- **Agency MCP (Capability Tools):** `tracker.get`, `tracker.transition`, `docs.get`, `scm.pr_create`, `scm.pr_link_ticket`.
 - **Workflow Tools:** `workflow.summary` (required for strict gate checklist + evidence discovery).
 - **Workflow Tools:** `workflow.gate_status` (standard Gate Status rendering).
 - **Workflow Tools:** `workflow.apply` (preferred for atomic comment + label/status updates).
