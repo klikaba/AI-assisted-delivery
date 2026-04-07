@@ -25,10 +25,10 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
      - **STOP** and ask: "Test cases are saved in the test repository. Ready to implement automation in the repo?"
    - If `tms.enabled=false`, document the planned test coverage in Jira before implementing automation.
    - Implement automated tests in the detected framework -> Run tests.
-   - **IF PASS:** Use `workflow.apply` to:
+   - **IF PASS:** Use `workflow.qa_decide` with `decision="pass"` to:
      - Post a Jira comment whose **first line** is exactly: `QA: PASS` (include `TestCases: ...` either in this comment or ensure it already exists in Jira comments).
      - Remove label `<in_qa>`, add label `<verified>` (defaults: `ai-state:in-qa`, `ai-state:verified`). (Status remains `In QA`).
-    - **IF FAIL:** Use `workflow.apply` to:
+    - **IF FAIL:** Use `workflow.qa_decide` with `decision="fail"` to:
      - Post a Jira comment whose **first line** is exactly: `QA: FAIL` (include failure details and next steps).
      - Remove label `<in_qa>`, add label `<approved>` (defaults: `ai-state:in-qa`, `ai-state:approved`). Move Status back to `In Progress` (or your project's equivalent).
 5. **Signal:** End with: `✅ QA COMPLETE: [TICKET_KEY] - [PASS/FAIL]`
@@ -50,6 +50,6 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 - **Agency MCP (Capability Tools):** `tracker.get`, `tracker.comment`, `tracker.transition`, `docs.get`.
 - **Workflow Tools:** `workflow.summary` (evidence discovery + strict gating).
 - **Workflow Tools:** `workflow.gate_status` (standard Gate Status rendering).
-- **Workflow Tools:** `workflow.apply` (atomic comment+labels with strict marker enforcement).
+- **Workflow Tools:** `workflow.qa_decide` (QA-owned pass/fail transition with evidence enforcement).
 - **Test Management (optional):** `tms.suite_ensure`, `tms.case_create`.
 - **Automation:** Project-specific testing framework (e.g., Playwright, Jest, Cypress, Selenium). Detect via `package.json` or config files.

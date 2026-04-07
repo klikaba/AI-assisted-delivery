@@ -168,3 +168,21 @@ test('config: reviewer keeps bash access for git-based review', () => {
   assert.equal(reviewer.tools?.edit, false);
   assert.equal(reviewer.tools?.bash, true);
 });
+
+test('config: architecture and devops are optional by default', () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' },
+    docs: { provider: 'atlassian' },
+    scm: { provider: 'none' }
+  });
+
+  const gen = runConfig(['--generate'], hostRoot);
+  assert.equal(gen.status, 0, gen.stderr || gen.stdout);
+
+  const outPath = path.join(hostRoot, 'opencode.jsonc');
+  const opencodeConfig = readOpencodeJsonc(outPath);
+  assert.equal(opencodeConfig.agent['Architecture Agent'], undefined);
+  assert.equal(opencodeConfig.agent['DevOps Engineer Agent'], undefined);
+});

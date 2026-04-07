@@ -20,10 +20,10 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
    - Decide PASS/FAIL based on findings.
    - **STOP** and ask: "I have completed the audit for [TICKET_KEY]. Mark PASS/FAIL and post the findings?"
 4. **Execution:**
-   - **PASS:** Use `workflow.apply` to:
+   - **PASS:** Use `workflow.security_decide` with `decision="pass"` to:
      - Post a Jira comment whose **first line** is exactly: `Security: PASS` (include brief summary of findings).
      - Add label `<security_pass>` (remove `<security_fail>` if present). (defaults: `ai-state:security-pass`, `ai-state:security-fail`)
-   - **FAIL:** Use `workflow.apply` to:
+   - **FAIL:** Use `workflow.security_decide` with `decision="fail"` to:
      - Post a Jira comment whose **first line** is exactly: `Security: FAIL` (include detailed findings and remediation steps).
      - Add label `<security_fail>`, remove `<security_pass>` if present, remove `<verified>`, add label `<approved>`, move Status to `In Progress` (or your project's equivalent). (defaults: `ai-state:security-fail`, `ai-state:security-pass`, `ai-state:verified`, `ai-state:approved`)
 5. **Signal:** End with: `✅ SECURITY AUDIT COMPLETE: [TICKET_KEY] - [PASS/FAIL]`
@@ -33,6 +33,6 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 - **VCS:** `git diff`.
 - **Workflow Tools:** `workflow.summary` (evidence discovery + strict gating).
 - **Workflow Tools:** `workflow.gate_status` (standard Gate Status rendering).
-- **Workflow Tools:** `workflow.apply` (atomic comment+labels with strict marker enforcement).
+- **Workflow Tools:** `workflow.security_decide` (security-owned pass/fail transition with evidence enforcement).
 - **Agency MCP (Capability Tools):** `tracker.comment`, `tracker.transition`.
 - **Memory:** `node .agency/scripts/memory.js (or node scripts/memory.js when developing .agency)` (Security policies).

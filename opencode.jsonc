@@ -47,11 +47,6 @@
       "description": "Converts requirements into Architecture and Plans.",
       "prompt": "{file:./prompts/planning.md}"
     },
-    "Architecture Agent": {
-      "model": "openai/gpt-5.4-mini",
-      "description": "Designs system components and diagrams.",
-      "prompt": "{file:./prompts/architecture.md}"
-    },
     "Developer Agent": {
       "model": "openai/gpt-5.4-mini",
       "description": "Implements features based on approved plans.",
@@ -70,11 +65,6 @@
       "model": "openai/gpt-5.4-mini",
       "description": "Audits code for vulnerabilities.",
       "prompt": "{file:./prompts/security.md}"
-    },
-    "DevOps Engineer Agent": {
-      "model": "openai/gpt-5.4-mini",
-      "description": "Manages environment and pipelines.",
-      "prompt": "{file:./prompts/devops.md}"
     },
     "QA Engineer Agent": {
       "model": "openai/gpt-5.4-mini",

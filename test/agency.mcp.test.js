@@ -68,6 +68,10 @@ test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
     assert.ok(tools.find((t) => t.name === 'agency.workflow.apply'));
     assert.ok(tools.find((t) => t.name === 'workflow.sync_plan_review'));
     assert.ok(tools.find((t) => t.name === 'agency.workflow.sync_plan_review'));
+    assert.ok(tools.find((t) => t.name === 'workflow.qa_decide'));
+    assert.ok(tools.find((t) => t.name === 'workflow.review_decide'));
+    assert.ok(tools.find((t) => t.name === 'workflow.security_decide'));
+    assert.ok(tools.find((t) => t.name === 'workflow.release'));
 
     const caps = await client.request('tools/call', { name: 'capabilities.get', arguments: {} });
     const capsFirst = caps.result?.content?.[0];
@@ -534,6 +538,144 @@ test('agency mcp: workflow.sync_plan_review can dry-run and apply (fake)', async
     const a2 = toolPayload(after2).item.labels;
     assert.ok(a2.includes('ai-state:ready-for-plan'));
     assert.ok(!a2.includes('ai-state:plan-review'));
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.qa_decide handles pass and fail transitions (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' },
+    tms: { provider: 'testrail' }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-351', key: 'ABC-351', title: 'QA pass', labels: ['ai-state:in-qa'], comments: [] },
+        { id: 'ABC-352', key: 'ABC-352', title: 'QA fail', labels: ['ai-state:in-qa'], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] },
+    tms: { suites: [], cases: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake', AGENCY_TMS_BACKEND: 'fake', AGENCY_SCM_BACKEND: 'none' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const pass = await client.request('tools/call', {
+      name: 'workflow.qa_decide',
+      arguments: { id: 'ABC-351', decision: 'pass', testcases: 'TestRail suite=12 section=34 cases=C1001', comment: 'Automation passed.' }
+    });
+    assert.ok(!pass.error);
+    const passItem = toolPayload(await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-351' } })).item;
+    assert.ok(passItem.labels.includes('ai-state:verified'));
+    assert.ok(!passItem.labels.includes('ai-state:in-qa'));
+    assert.ok(passItem.comments.some((c) => String(c).includes('QA: PASS')));
+    assert.ok(passItem.comments.some((c) => String(c).includes('TestCases: TestRail suite=12 section=34 cases=C1001')));
+
+    const fail = await client.request('tools/call', {
+      name: 'workflow.qa_decide',
+      arguments: { id: 'ABC-352', decision: 'fail', comment: 'Regression in reconnect flow.' }
+    });
+    assert.ok(!fail.error);
+    const failItem = toolPayload(await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-352' } })).item;
+    assert.ok(failItem.labels.includes('ai-state:approved'));
+    assert.ok(!failItem.labels.includes('ai-state:in-qa'));
+    assert.equal(failItem.status, 'In Progress');
+    assert.ok(failItem.comments.some((c) => String(c).includes('QA: FAIL')));
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.review_decide handles pass transition (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-361', key: 'ABC-361', title: 'Review pass', labels: ['ai-state:verified'], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake', AGENCY_SCM_BACKEND: 'none' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+    const res = await client.request('tools/call', {
+      name: 'workflow.review_decide',
+      arguments: { id: 'ABC-361', decision: 'pass', comment: 'Code quality is acceptable.' }
+    });
+    assert.ok(!res.error);
+    const item = toolPayload(await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-361' } })).item;
+    assert.ok(item.labels.includes('ai-state:reviewed'));
+    assert.ok(item.comments.some((c) => String(c).includes('Review: PASS')));
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.security_decide handles fail transition (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' },
+    workflow: { gates: { security_audit: true } }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-371', key: 'ABC-371', title: 'Security fail', labels: ['ai-state:verified'], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake', AGENCY_SCM_BACKEND: 'none' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+    const res = await client.request('tools/call', {
+      name: 'workflow.security_decide',
+      arguments: { id: 'ABC-371', decision: 'fail', comment: 'Potential secret exposure.' }
+    });
+    assert.ok(!res.error);
+    const item = toolPayload(await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-371' } })).item;
+    assert.ok(item.labels.includes('ai-state:security-fail'));
+    assert.ok(item.labels.includes('ai-state:approved'));
+    assert.ok(!item.labels.includes('ai-state:verified'));
+    assert.equal(item.status, 'In Progress');
+    assert.ok(item.comments.some((c) => String(c).includes('Security: FAIL')));
   } finally {
     proc.kill();
   }

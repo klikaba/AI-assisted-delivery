@@ -347,6 +347,52 @@ function toolList() {
       }
     },
     {
+      name: 'workflow.qa_decide',
+      description: 'QA automation: post QA evidence and move a ticket from in-qa to verified or back to approved.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'decision'],
+        properties: {
+          id: { type: 'string' },
+          decision: { type: 'string', enum: ['pass', 'fail'] },
+          comment: { type: 'string' },
+          testcases: { type: 'string' },
+          status: { type: 'string' }
+        }
+      }
+    },
+    {
+      name: 'workflow.review_decide',
+      description: 'Review automation: post review evidence and move a ticket through reviewed or back to approved.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'decision'],
+        properties: {
+          id: { type: 'string' },
+          decision: { type: 'string', enum: ['pass', 'fail'] },
+          comment: { type: 'string' },
+          status: { type: 'string' }
+        }
+      }
+    },
+    {
+      name: 'workflow.security_decide',
+      description: 'Security automation: post security evidence and move a ticket through security pass/fail outcomes.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'decision'],
+        properties: {
+          id: { type: 'string' },
+          decision: { type: 'string', enum: ['pass', 'fail'] },
+          comment: { type: 'string' },
+          status: { type: 'string' }
+        }
+      }
+    },
+    {
       name: 'workflow.release',
       description: 'PM automation: verify release gates, create release notes, close the ticket, and clear workflow labels. Supports dry-run.',
       inputSchema: {
@@ -430,6 +476,9 @@ function computeCapabilities({ mode, config }) {
       gate_status: true,
       apply: true,
       sync_plan_review: true,
+      qa_decide: true,
+      review_decide: true,
+      security_decide: true,
       release: true
     },
     scm: {
@@ -743,6 +792,95 @@ async function callTool(name, args) {
     }
 
     return { ok: true, results };
+  }
+
+  if (name === 'workflow.qa_decide' || name === 'workflow.review_decide' || name === 'workflow.security_decide') {
+    const id = args?.id ? String(args.id) : '';
+    if (!id) throw new Error(`${name} requires id`);
+    const decision = String(args?.decision || '').toLowerCase();
+    if (!['pass', 'fail'].includes(decision)) {
+      throw new Error(`${name} requires decision to be "pass" or "fail"`);
+    }
+
+    const summary = await computeSummaryForTicket(id);
+    const labels = Array.isArray(summary?.ticket?.labels) ? summary.ticket.labels : [];
+    const userComment = args?.comment ? String(args.comment).trim() : '';
+    const requestedStatus = args?.status ? String(args.status) : null;
+
+    const labelApproved = workflowLabel(config, 'approved', 'ai-state:approved');
+    const labelInQa = workflowLabel(config, 'in_qa', 'ai-state:in-qa');
+    const labelVerified = workflowLabel(config, 'verified', 'ai-state:verified');
+    const labelReviewed = workflowLabel(config, 'reviewed', 'ai-state:reviewed');
+    const labelReviewFail = workflowLabel(config, 'review_fail', 'ai-state:review-fail');
+    const labelSecurityPass = workflowLabel(config, 'security_pass', 'ai-state:security-pass');
+    const labelSecurityFail = workflowLabel(config, 'security_fail', 'ai-state:security-fail');
+
+    let actions = [];
+    let result = {};
+
+    if (name === 'workflow.qa_decide') {
+      if (!safeLabelIncludes(labels, labelInQa)) {
+        throw new Error(`workflow.qa_decide blocked: ticket must have ${labelInQa}`);
+      }
+      const testcases = args?.testcases ? String(args.testcases).trim() : '';
+      const commentLines = [decision === 'pass' ? 'QA: PASS' : 'QA: FAIL'];
+      if (testcases) commentLines.push(`TestCases: ${testcases}`);
+      if (userComment) commentLines.push('', userComment);
+
+      actions = [
+        { type: 'comment', body: commentLines.join('\n') },
+        {
+          type: 'set_labels',
+          remove: [labelInQa],
+          add: decision === 'pass' ? [labelVerified] : [labelApproved]
+        }
+      ];
+      if (decision === 'fail' || requestedStatus) {
+        actions.push({ type: 'transition', status: requestedStatus || 'In Progress' });
+      }
+      result = { decision, from: labelInQa, to: decision === 'pass' ? labelVerified : labelApproved };
+    }
+
+    if (name === 'workflow.review_decide') {
+      if (!safeLabelIncludes(labels, labelVerified)) {
+        throw new Error(`workflow.review_decide blocked: ticket must have ${labelVerified}`);
+      }
+      const commentLines = [decision === 'pass' ? 'Review: PASS' : 'Review: FAIL'];
+      if (userComment) commentLines.push('', userComment);
+
+      actions = [
+        { type: 'comment', body: commentLines.join('\n') },
+        decision === 'pass'
+          ? { type: 'set_labels', remove: [labelReviewFail], add: [labelReviewed] }
+          : { type: 'set_labels', remove: [labelReviewed, labelVerified], add: [labelReviewFail, labelApproved] }
+      ];
+      if (decision === 'fail' || requestedStatus) {
+        actions.push({ type: 'transition', status: requestedStatus || 'In Progress' });
+      }
+      result = { decision, from: labelVerified, to: decision === 'pass' ? labelReviewed : labelApproved };
+    }
+
+    if (name === 'workflow.security_decide') {
+      if (!safeLabelIncludes(labels, labelVerified)) {
+        throw new Error(`workflow.security_decide blocked: ticket must have ${labelVerified}`);
+      }
+      const commentLines = [decision === 'pass' ? 'Security: PASS' : 'Security: FAIL'];
+      if (userComment) commentLines.push('', userComment);
+
+      actions = [
+        { type: 'comment', body: commentLines.join('\n') },
+        decision === 'pass'
+          ? { type: 'set_labels', remove: [labelSecurityFail], add: [labelSecurityPass] }
+          : { type: 'set_labels', remove: [labelSecurityPass, labelVerified], add: [labelSecurityFail, labelApproved] }
+      ];
+      if (decision === 'fail' || requestedStatus) {
+        actions.push({ type: 'transition', status: requestedStatus || 'In Progress' });
+      }
+      result = { decision, from: labelVerified, to: decision === 'pass' ? labelSecurityPass : labelApproved };
+    }
+
+    const applied = await callTool('workflow.apply', { id, strict: true, actions });
+    return { version: '1.0', ticket: summary.ticket, ...result, actions, applied };
   }
 
   if (name === 'workflow.sync_plan_review') {

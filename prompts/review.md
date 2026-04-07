@@ -20,10 +20,10 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
     - Decide PASS/FAIL based on ACs and quality.
     - **STOP** and ask: "Review for [TICKET_KEY] is complete. Mark PASS/FAIL and post feedback?"
 4. **Execution:** 
-   - **PASS:** Use `workflow.apply` to:
+   - **PASS:** Use `workflow.review_decide` with `decision="pass"` to:
      - Post a Jira comment whose **first line** is exactly: `Review: PASS` (include a brief summary + any follow-ups).
      - Add label `<reviewed>` (remove `<review_fail>` if present). (defaults: `ai-state:reviewed`, `ai-state:review-fail`)
-    - **FAIL:** Use `workflow.apply` to:
+    - **FAIL:** Use `workflow.review_decide` with `decision="fail"` to:
      - Post a Jira comment whose **first line** is exactly: `Review: FAIL` (include actionable feedback and what must change).
      - Add label `<review_fail>`, remove `<reviewed>` if present, remove `<verified>`, add label `<approved>`, move Status to `In Progress` (or your project's equivalent). (defaults: `ai-state:review-fail`, `ai-state:reviewed`, `ai-state:verified`, `ai-state:approved`)
 5. **Signal:** End with: `✅ CODE REVIEW COMPLETE: [TICKET_KEY] - [PASS/FAIL]`
@@ -38,4 +38,4 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 - **Agency MCP (Capability Tools):** `tracker.comment`, `tracker.transition`, `scm.pr_get`, `scm.pr_comment`.
 - **Workflow Tools:** `workflow.summary` (evidence discovery + strict gating).
 - **Workflow Tools:** `workflow.gate_status` (standard Gate Status rendering).
-- **Workflow Tools:** `workflow.apply` (atomic comment+labels with strict marker enforcement).
+- **Workflow Tools:** `workflow.review_decide` (review-owned pass/fail transition with evidence enforcement).

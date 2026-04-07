@@ -85,6 +85,28 @@ For normal use:
 2. rely on provider adapters behind `agency`
 3. use direct vendor MCPs only when necessary
 
+## Agent Model
+
+Core workflow roles:
+
+- Product Owner
+- Planning
+- Developer
+- QA
+- Code Reviewer
+- Project Manager
+
+Conditional core role:
+
+- Security (when `workflow.gates.security_audit=true`)
+
+Optional specialist roles:
+
+- Architecture
+- DevOps
+
+Architecture and DevOps remain available, but they are advisory overlays rather than default workflow stages.
+
 For demos:
 
 1. preflight the exact `agency` workflow path

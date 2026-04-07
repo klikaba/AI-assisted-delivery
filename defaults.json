@@ -41,11 +41,11 @@
   "agents": {
     "product_owner": { "enabled": true },
     "planning": { "enabled": true },
-    "architecture": { "enabled": true },
+    "architecture": { "enabled": false },
     "developer": { "enabled": true },
     "reviewer": { "enabled": true, "tools": { "edit": false, "bash": true } },
     "security": { "enabled": true },
-    "devops": { "enabled": true },
+    "devops": { "enabled": false },
     "qa": { "enabled": true },
     "pm": { "enabled": true }
   },

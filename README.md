@@ -120,7 +120,9 @@ This is the “happy path” your team runs day-to-day in the OpenCode TUI.
 
 ## What This Is
 
-- A set of governed SDLC agent prompts (Product, Planning, Architecture, Dev, QA, Review, Security, DevOps, PM).
+- A set of governed SDLC agent prompts.
+- Core workflow roles enabled by default: Product, Planning, Dev, QA, Review, Security, PM.
+- Optional specialist roles available but disabled by default: Architecture, DevOps.
 - A portable workflow contract built on `ai-state:*` labels plus optional status transitions (best-effort).
 - A lightweight context engine that merges shared rules + repo rules + local runtime memory.
 
