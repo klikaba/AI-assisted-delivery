@@ -28,11 +28,13 @@ const {
   parseReviewMarker,
   parseSecurityMarker,
   parseTestCasesRefFromComments,
+  parsePlanArtifactFromComments,
   normalizeStatus,
   safeLabelIncludes,
   workflowLabel,
   workflowGate
 } = require('./agency/workflow');
+const { validatePlan } = require('./schema/plan');
 
 function writeStderr(line) {
   process.stderr.write(`${line}\n`);
@@ -153,6 +155,29 @@ function toolList() {
           id: { type: 'string' },
           add: { type: 'array', items: { type: 'string' } },
           remove: { type: 'array', items: { type: 'string' } }
+        }
+      }
+    },
+    {
+      name: 'plan.get',
+      description: 'Get the latest structured execution plan linked to a tracker ticket.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id'],
+        properties: { id: { type: 'string' } }
+      }
+    },
+    {
+      name: 'plan.publish',
+      description: 'Publish a structured execution plan to the tracker as the canonical machine-readable handoff artifact.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'plan'],
+        properties: {
+          id: { type: 'string' },
+          plan: { type: 'object', additionalProperties: true }
         }
       }
     },
@@ -475,6 +500,10 @@ function computeCapabilities({ mode, config }) {
       transition: hasFn(trackerBackend.tracker, 'transition'),
       set_labels: hasFn(trackerBackend.tracker, 'set_labels')
     },
+    plan: {
+      get: true,
+      publish: true
+    },
     docs: {
       create: hasFn(docsBackend.docs, 'create'),
       get: hasFn(docsBackend.docs, 'get'),
@@ -513,6 +542,52 @@ async function callTool(name, args) {
 
   if (name === 'capabilities.get') {
     return computeCapabilities({ mode, config });
+  }
+
+  if (name === 'plan.get' || name === 'plan.publish') {
+    const trackerBackendId = selectBackend('tracker', mode, config);
+    const trackerBackend = loadBackend('tracker', trackerBackendId);
+
+    if (name === 'plan.get') {
+      const ticketId = args?.id ? String(args.id) : '';
+      if (!ticketId) throw new Error('plan.get requires id');
+      const ticketRes = await trackerBackend.tracker.get({ id: ticketId });
+      const ticket = ticketRes?.item;
+      const comments = Array.isArray(ticket?.comments) ? ticket.comments : [];
+      const ref = parsePlanArtifactFromComments(comments);
+      return {
+        version: '1.0',
+        ticket: {
+          id: ticket?.id ? String(ticket.id) : ticketId,
+          key: ticket?.key ? String(ticket.key) : null,
+          title: ticket?.title ? String(ticket.title) : '',
+          url: ticket?.url ? String(ticket.url) : null
+        },
+        found: Boolean(ref),
+        plan: ref?.plan || null,
+        valid: Boolean(ref?.valid),
+        errors: Array.isArray(ref?.errors) ? ref.errors : [],
+        ref: ref?.ref || null
+      };
+    }
+
+    const ticketId = args?.id ? String(args.id) : '';
+    if (!ticketId) throw new Error('plan.publish requires id');
+    const plan = args?.plan;
+    const validation = validatePlan(plan);
+    if (!validation.ok) throw new Error(`plan.publish invalid plan: ${validation.errors.join('; ')}`);
+    if (String(plan?.ticket?.id || '') !== ticketId) {
+      throw new Error(`plan.publish ticket mismatch: plan.ticket.id=${String(plan?.ticket?.id || '')} does not match target id=${ticketId}`);
+    }
+    const body = `Execution Plan (JSON)\n\n\`\`\`json\n${JSON.stringify(plan, null, 2)}\n\`\`\``;
+    await trackerBackend.tracker.comment({ id: ticketId, body });
+    return {
+      version: '1.0',
+      ticket: { id: ticketId },
+      published: true,
+      plan,
+      body
+    };
   }
 
   function gateStatusLinesFromSummary(s) {
@@ -573,6 +648,7 @@ async function callTool(name, args) {
 
     const specRef = parseSpecRefFromComments(comments);
     const prRef = parsePrRefFromComments(comments);
+    const planRef = parsePlanArtifactFromComments(comments);
     const qaMarker = parseQaMarker(comments);
     const reviewMarker = parseReviewMarker(comments);
     const securityMarker = parseSecurityMarker(comments);
@@ -644,6 +720,15 @@ async function callTool(name, args) {
 
     const evidence = {
       spec: spec ? { ...spec, approved: specApproved } : { approved: !gateSpec, missing: gateSpec },
+      plan: planRef
+        ? {
+            linked: true,
+            valid: Boolean(planRef.valid),
+            errors: Array.isArray(planRef.errors) ? planRef.errors : [],
+            ref: planRef.ref || null,
+            plan: planRef.plan || null
+          }
+        : { linked: false, valid: false, missing: true },
       pr: pr ? { ...pr, linked: true, required: scmEnabled } : { linked: false, required: scmEnabled },
       tms: { required: requiresTmsCases, enabled: tmsProvider !== 'none', backend: tmsBackendId, ref: testCasesRef },
       qa: { required: gateQa, passed: qaPassed, label: labelVerified, marker: qaMarker },
@@ -653,6 +738,8 @@ async function callTool(name, args) {
 
     const missing = [];
     if (gateSpec && !specApproved) missing.push('spec approval');
+    if (spec && !planRef) missing.push('execution plan');
+    if (planRef && !planRef.valid) missing.push('valid execution plan');
     if (gateQa && !qaPassed) missing.push('qa verification');
     if (gateReview && !reviewPassed) missing.push('code review');
     if (gateSecurity && !securityPassed) missing.push('security audit');
@@ -660,6 +747,8 @@ async function callTool(name, args) {
 
     let next = null;
     if (!spec) next = 'Run Planning Agent to create/link a Spec.';
+    else if (!planRef) next = 'Run Planning Agent to publish the structured execution plan.';
+    else if (!planRef.valid) next = 'Run Planning Agent to repair and republish a valid structured execution plan.';
     else if (gateSpec && !specApproved) next = 'Approve the Spec in Confluence (Spec Status: APPROVED), then run PM Governance Sync to apply the approved label.';
     else if (requiresTmsCases && isInQa && !testCasesRef) next = 'Create test cases in the test repository (e.g. TestRail) and comment `TestCases: ...`, then implement automation and rerun QA.';
     else if (!safeLabelIncludes(labels, labelApproved) && !safeLabelIncludes(labels, labelInQa) && !safeLabelIncludes(labels, labelVerified) && !safeLabelIncludes(labels, labelReviewed)) {

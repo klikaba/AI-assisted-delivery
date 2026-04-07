@@ -111,3 +111,82 @@ test('agency cli: tracker update modifies title and body on fake backend', () =>
   assert.equal(payload.item.title, 'New title');
   assert.equal(payload.item.body, 'New body');
 });
+
+test('agency cli: plan publish/get round-trips on fake backend', () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' }
+  });
+  writeJson(path.join(hostRoot, '.agency-fixtures', 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-3', key: 'ABC-3', title: 'Plan target', labels: [], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const planFile = path.join(hostRoot, 'plan.json');
+  writeJson(planFile, {
+    version: '1.0',
+    ticket: { id: 'ABC-3', key: 'ABC-3', title: 'Plan target', url: null },
+    acceptanceCriteria: ['AC-1'],
+    filesToTouch: ['src/app.js'],
+    steps: [{ id: '1', description: 'Implement', acRefs: ['AC-1'] }]
+  });
+
+  const pub = runAgency(
+    ['plan', 'publish', '--id', 'ABC-3', '--file', planFile, '--json'],
+    hostRoot,
+    { AGENCY_INTEGRATION_BACKEND: 'fake' }
+  );
+  assert.equal(pub.status, 0, pub.stderr || pub.stdout);
+
+  const get = runAgency(
+    ['plan', 'get', '--id', 'ABC-3', '--json'],
+    hostRoot,
+    { AGENCY_INTEGRATION_BACKEND: 'fake' }
+  );
+  assert.equal(get.status, 0, get.stderr || get.stdout);
+  const payload = JSON.parse(get.stdout);
+  assert.equal(payload.found, true);
+  assert.equal(payload.valid, true);
+  assert.equal(payload.plan.ticket.id, 'ABC-3');
+  assert.deepEqual(payload.plan.filesToTouch, ['src/app.js']);
+});
+
+test('agency cli: plan publish rejects ticket mismatch', () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' }
+  });
+  writeJson(path.join(hostRoot, '.agency-fixtures', 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-4', key: 'ABC-4', title: 'Mismatch target', labels: [], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const planFile = path.join(hostRoot, 'plan-mismatch.json');
+  writeJson(planFile, {
+    version: '1.0',
+    ticket: { id: 'ABC-999', key: 'ABC-999', title: 'Wrong target', url: null },
+    acceptanceCriteria: ['AC-1'],
+    filesToTouch: ['src/app.js'],
+    steps: [{ id: '1', description: 'Implement', acRefs: ['AC-1'] }]
+  });
+
+  const pub = runAgency(
+    ['plan', 'publish', '--id', 'ABC-4', '--file', planFile, '--json'],
+    hostRoot,
+    { AGENCY_INTEGRATION_BACKEND: 'fake' }
+  );
+  assert.notEqual(pub.status, 0);
+  assert.match(pub.stderr, /ticket mismatch/);
+});

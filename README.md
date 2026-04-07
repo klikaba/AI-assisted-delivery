@@ -394,6 +394,7 @@ Output includes:
 This platform exposes a stable, vendor-agnostic tool surface to agents via a local MCP server:
 
 - **Tracker tools:** `tracker.search`, `tracker.get`, `tracker.comment`, `tracker.update`, `tracker.transition`, `tracker.set_labels`
+- **Plan tools:** `plan.get`, `plan.publish`
 - **Docs tools:** `docs.create`, `docs.get`, `docs.update`
 - **SCM tools:** `scm.pr_create`, `scm.pr_get`, `scm.pr_comment`, `scm.pr_set_labels`, `scm.pr_link_ticket`
 - **Workflow tools:** `workflow.queue`, `workflow.gate_status`, `workflow.summary`, `workflow.apply`, `workflow.sync_plan_review`, `workflow.qa_decide`, `workflow.review_decide`, `workflow.security_decide`, `workflow.release`
@@ -561,9 +562,21 @@ If you don’t want the full SDLC menu in the OpenCode TUI, you can generate foc
 
 1. Pick an issue/ticket and add label `ai-state:ready-for-plan`.
 2. Run the **Planning Agent**:
-   - Creates a Spec (`docs.create`, `Spec Status: DRAFT`)
+   - Creates or updates the implementation Spec (`docs.create`/`docs.update`, `Spec Status: DRAFT`)
+   - Uses a consistent Spec structure:
+     - Summary
+     - Problem Statement
+     - Scope / Non-Goals
+     - Acceptance Criteria Traceability
+     - Proposed Implementation Approach
+     - Impacted Systems / Files
+     - Architecture Notes
+     - Diagram(s) when warranted
+     - Risks / Open Questions
+     - Validation / QA Strategy
+     - Rollout / Operational Notes
    - Comments on the ticket with a Spec reference (prefer `Spec: <id> <url>`)
-   - Posts the JSON plan as a comment
+   - Publishes the structured JSON execution plan via `plan.publish` as a secondary machine-readable handoff
    - Moves label to `ai-state:plan-review`
 3. Human review: update `Spec Status` to `APPROVED` (or `CHANGES REQUESTED`).
 4. Run **PM (Governance Sync)** to sync `Spec Status` back to ticket labels:

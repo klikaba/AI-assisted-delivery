@@ -147,8 +147,11 @@ async function main() {
   trace.push({ op: 'tracker.comment', args: { id: item.id, body: `Spec: ${specId} ${specUrl}` } });
   await backend.tracker.comment({ id: item.id, body: `Spec: ${specId} ${specUrl}` });
 
-  trace.push({ op: 'tracker.comment', args: { id: item.id, body: '<plan json>' } });
-  await backend.tracker.comment({ id: item.id, body: `Implementation Plan (JSON)\n\n${JSON.stringify(plan, null, 2)}` });
+  trace.push({ op: 'tracker.comment', args: { id: item.id, body: '<execution plan json>' } });
+  await backend.tracker.comment({
+    id: item.id,
+    body: `Execution Plan (JSON)\n\n\`\`\`json\n${JSON.stringify(plan, null, 2)}\n\`\`\``
+  });
 
   // Relabel
   if (mode === 'github') {

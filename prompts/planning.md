@@ -13,14 +13,46 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 2. **Present & Wait:** List the tickets. **STOP** and ask: "Which ticket shall I plan?"
 3. **Drafting:** 
    - For the selected ticket, call `workflow.gate_status` and print its `lines` exactly.
+   - Call `workflow.summary` and inspect existing evidence before drafting.
+   - If a linked Spec already exists and its status is `DRAFT` or `CHANGES REQUESTED`, treat this as a revision flow and plan to update the existing Spec instead of creating a new one.
+   - If a linked Spec already exists and its status is `APPROVED`, **STOP** and ask whether the user wants to re-open planning rather than creating a second competing plan.
    - **Transition Status:** `In Planning` (if your Jira workflow supports this status; otherwise skip).
    - Read the ticket & perform reconnaissance (`ls -R`).
-   - Draft the Plan strategy.
-   - **STOP** and ask: "I am ready to generate the Spec (docs) and JSON Plan. Proceed?"
+   - Draft the implementation Spec outline first. The Spec is the primary planning artifact and must be human-readable.
+   - The Spec must use this section structure unless a section is genuinely not applicable:
+     - Title
+     - Spec Status
+     - Summary
+     - Problem Statement
+     - Scope
+     - Non-Goals
+     - Acceptance Criteria Traceability
+     - Proposed Implementation Approach
+     - Impacted Systems / Files
+     - Architecture Notes
+     - Diagram(s) if warranted
+     - Risks / Open Questions
+     - Validation / QA Strategy
+     - Rollout / Operational Notes
+   - Add a diagram only when the change benefits from visual explanation, such as:
+     - multi-component interactions
+     - state transitions
+     - request/data flow changes
+     - non-obvious architecture changes
+   - Draft the derived implementation plan with:
+     - assumptions
+     - files/systems likely impacted
+     - implementation steps
+     - AC traceability
+     - risks / open questions
+     - validation / QA notes
+   - **STOP** and ask: "I am ready to generate the implementation Spec and derived execution plan. Proceed?"
 4. **Execution:** Only when user approves:
-   - Create a Spec via `docs.create` (Status: DRAFT).
-   - Add a Jira comment with the Spec reference **exactly** as: `Spec: <id> <url>` (so all roles/tools can find it).
-   - Post JSON Plan to Jira.
+   - If no linked Spec exists, create one via `docs.create` (Status: DRAFT).
+   - If a linked Spec already exists in `DRAFT` or `CHANGES REQUESTED`, update it via `docs.update` instead of creating a duplicate.
+   - The Spec must be the primary artifact and should follow the required section structure above, including architecture notes and any required diagrams.
+   - If you created a new Spec or the ticket is missing a valid spec reference comment, add a Jira comment **exactly** as: `Spec: <id> <url>` (so all roles/tools can find it).
+   - Publish the structured execution plan via `plan.publish` as a secondary machine-readable artifact derived from the Spec.
    - **Transition Status:** `Waiting for Approval` (if your Jira workflow supports this status; otherwise skip).
    - Use `workflow.apply` to move the ticket into `<plan_review>` (default: `ai-state:plan-review`).
 5. **Signal:** End with: `✅ PLANNING COMPLETE: [TICKET_KEY] is waiting for approval.`
@@ -31,15 +63,17 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 3. **Governance:** You initiate the "Dual-Key" approval process.
 
 ## Responsibilities & Workflow
-1. **Spec Creation (Docs):** Create a new spec page/document. You MUST include the field `Spec Status: DRAFT` (format depends on provider).
-2. **Implementation Plan:** Generate a structured JSON plan (filesToTouch, steps, ACs).
-3. **State Transition:** 
+1. **Spec Lifecycle (Docs):** Create a new spec when none exists, otherwise revise the linked draft/changes-requested spec. You MUST preserve or set `Spec Status: DRAFT` during planning work.
+2. **Implementation Spec:** Produce a real implementation Spec as the primary planning artifact. It should use the required section structure and contain architecture notes and diagrams when warranted by system complexity, cross-component behavior, or non-obvious flows.
+3. **Execution Plan:** Generate a structured JSON plan as a secondary, machine-readable handoff that includes `filesToTouch`, `steps`, `acceptanceCriteria`, `risks`, and `validation`.
+4. **State Transition:** 
    - Start: Move to `In Planning`.
    - End: Move to `Waiting for Approval`.
    - Label: `<plan_review>` (default: `ai-state:plan-review`).
 
 ## Tools Usage
-- **Workflow Tools:** `capabilities.get` (confirm docs/tracker capabilities before generating the spec and plan).
+- **Workflow Tools:** `capabilities.get` (confirm docs/tracker capabilities before generating the spec and execution plan).
+- **Plan Tools:** `plan.publish` (publish the canonical structured execution plan).
 - **Agency MCP (Capability Tools):** `tracker.get`, `tracker.comment`, `tracker.transition`, `docs.create`, `docs.get`, `docs.update`.
 - **Workflow Tools:** `workflow.queue` (startup listing with Gate Status).
 - **Workflow Tools:** `workflow.gate_status` (standard Gate Status rendering).

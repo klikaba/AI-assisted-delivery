@@ -20,7 +20,7 @@ function validateCapabilities(payload) {
     }
   }
 
-  for (const section of ['tracker', 'docs']) {
+  for (const section of ['tracker', 'docs', 'plan']) {
     if (!isObject(payload[section])) {
       errors.push(`capabilities.${section} must be an object`);
       continue;

@@ -1,3 +1,5 @@
+const { validatePlan } = require('../schema/plan');
+
 function parseSpecRefFromComments(comments) {
   const list = Array.isArray(comments) ? comments.map(String) : [];
   for (const c of list) {
@@ -63,6 +65,52 @@ function parseTestCasesRefFromComments(comments) {
   return null;
 }
 
+function extractJsonBlock(comment) {
+  const text = String(comment || '');
+  const fenced = /```json\s*([\s\S]*?)```/i.exec(text) || /```\s*([\s\S]*?)```/i.exec(text);
+  if (fenced) return fenced[1].trim();
+
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start >= 0 && end > start) return text.slice(start, end + 1).trim();
+  return null;
+}
+
+function parsePlanArtifactFromComments(comments) {
+  const list = Array.isArray(comments) ? comments.map(String) : [];
+  for (let i = list.length - 1; i >= 0; i -= 1) {
+    const c = list[i];
+    if (!/Execution\s+Plan\s*\(JSON\)/i.test(c)) continue;
+    const jsonText = extractJsonBlock(c);
+    if (!jsonText) {
+      return {
+        ref: { index: i, marker: 'comment' },
+        plan: null,
+        valid: false,
+        errors: ['Plan comment found but JSON payload could not be extracted']
+      };
+    }
+    try {
+      const plan = JSON.parse(jsonText);
+      const validation = validatePlan(plan);
+      return {
+        ref: { index: i, marker: 'comment' },
+        plan,
+        valid: validation.ok,
+        errors: validation.ok ? [] : validation.errors
+      };
+    } catch (err) {
+      return {
+        ref: { index: i, marker: 'comment' },
+        plan: null,
+        valid: false,
+        errors: [`Plan JSON parse failed: ${err && err.message ? err.message : String(err)}`]
+      };
+    }
+  }
+  return null;
+}
+
 function normalizeStatus(status) {
   if (status === undefined || status === null) return '';
   return String(status).trim().toUpperCase();
@@ -94,6 +142,7 @@ module.exports = {
   parseReviewMarker,
   parseSecurityMarker,
   parseTestCasesRefFromComments,
+  parsePlanArtifactFromComments,
   normalizeStatus,
   safeLabelIncludes,
   workflowLabel,

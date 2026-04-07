@@ -14,10 +14,13 @@
  * Usage examples:
  *   node scripts/agency.js tracker search --label ai-state:ready-for-plan --json
  *   node scripts/agency.js tracker comment --id 123 --body "hello" --json
+ *   node scripts/agency.js plan get --id 123 --json
  *   node scripts/agency.js docs create --title "Spec" --body "..." --status DRAFT --json
  */
 
 const { loadResolvedConfig, selectBackend, loadBackend } = require('./agency/runtime');
+const { parsePlanArtifactFromComments } = require('./agency/workflow');
+const { validatePlan } = require('./schema/plan');
 
 function parseArgs(argv) {
   const out = {
@@ -90,6 +93,9 @@ Domains/actions:
   tracker update   --id <id> [--title <title>] [--body <text>] [--json]
   tracker transition --id <id> --status <status> [--json]
   tracker set-labels --id <id> [--add <label> ...] [--remove <label> ...] [--json]
+
+  plan get         --id <id> [--json]
+  plan publish     --id <id> --file <path> [--json]
 
   docs create      --title <title> --body <body> [--status DRAFT] [--parent-id <id>] [--json]
   docs get         --id <id> [--json]
@@ -177,6 +183,58 @@ async function main() {
         return;
       }
       die(`Unknown tracker action "${action}"`);
+    }
+
+    if (domain === 'plan') {
+      const trackerBackendId = selectBackend('tracker', mode, config);
+      const trackerBackend = loadBackend('tracker', trackerBackendId);
+
+      if (action === 'get') {
+        if (!flags.id) die('plan get requires --id');
+        const ticketRes = await trackerBackend.tracker.get({ id: flags.id });
+        const ticket = ticketRes?.item;
+        const comments = Array.isArray(ticket?.comments) ? ticket.comments : [];
+        const ref = parsePlanArtifactFromComments(comments);
+        jsonOut({
+          version: '1.0',
+          ticket: {
+            id: ticket?.id ? String(ticket.id) : String(flags.id),
+            key: ticket?.key ? String(ticket.key) : null,
+            title: ticket?.title ? String(ticket.title) : '',
+            url: ticket?.url ? String(ticket.url) : null
+          },
+          found: Boolean(ref),
+          plan: ref?.plan || null,
+          valid: Boolean(ref?.valid),
+          errors: Array.isArray(ref?.errors) ? ref.errors : [],
+          ref: ref?.ref || null
+        }, args.json);
+        return;
+      }
+
+      if (action === 'publish') {
+        if (!flags.id) die('plan publish requires --id');
+        if (!flags.file) die('plan publish requires --file');
+        const fs = require('fs');
+        const raw = fs.readFileSync(String(flags.file), 'utf8');
+        let plan;
+        try {
+          plan = JSON.parse(raw);
+        } catch (err) {
+          die(`plan publish invalid JSON file: ${err && err.message ? err.message : String(err)}`);
+        }
+        const validation = validatePlan(plan);
+        if (!validation.ok) die(`plan publish invalid plan: ${validation.errors.join('; ')}`);
+        if (String(plan?.ticket?.id || '') !== String(flags.id)) {
+          die(`plan publish ticket mismatch: plan.ticket.id=${String(plan?.ticket?.id || '')} does not match target id=${String(flags.id)}`);
+        }
+        const body = `Execution Plan (JSON)\n\n\`\`\`json\n${JSON.stringify(plan, null, 2)}\n\`\`\``;
+        const res = await trackerBackend.tracker.comment({ id: flags.id, body });
+        jsonOut({ version: '1.0', ok: true, result: res, plan }, args.json);
+        return;
+      }
+
+      die(`Unknown plan action "${action}"`);
     }
 
     if (domain === 'docs') {

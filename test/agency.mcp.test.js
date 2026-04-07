@@ -58,6 +58,10 @@ test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
     assert.ok(tools.find((t) => t.name === 'agency.docs.create'));
     assert.ok(tools.find((t) => t.name === 'tracker.update'));
     assert.ok(tools.find((t) => t.name === 'agency.tracker.update'));
+    assert.ok(tools.find((t) => t.name === 'plan.get'));
+    assert.ok(tools.find((t) => t.name === 'agency.plan.get'));
+    assert.ok(tools.find((t) => t.name === 'plan.publish'));
+    assert.ok(tools.find((t) => t.name === 'agency.plan.publish'));
     assert.ok(tools.find((t) => t.name === 'scm.pr_create'));
     assert.ok(tools.find((t) => t.name === 'agency.scm.pr_create'));
     assert.ok(tools.find((t) => t.name === 'workflow.summary'));
@@ -83,6 +87,8 @@ test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
     assert.equal(capsPayload.backends.docs, 'fake');
     assert.equal(capsPayload.backends.scm, 'fake');
     assert.equal(capsPayload.tracker.update, true);
+    assert.equal(capsPayload.plan.get, true);
+    assert.equal(capsPayload.plan.publish, true);
 
     const call = await client.request('tools/call', {
       name: 'tracker.search',
@@ -271,6 +277,138 @@ test('agency mcp: tracker.update modifies canonical tracker fields (fake)', asyn
     const payload = toolPayload(res);
     assert.equal(payload.item.title, 'Refined title');
     assert.equal(payload.item.body, 'Refined body');
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: plan.publish + plan.get expose canonical execution plan (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), { version: '1.0', tracker: { mode: 'atlassian' } });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-12', key: 'ABC-12', title: 'Plan MCP', labels: [], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const plan = {
+      version: '1.0',
+      ticket: { id: 'ABC-12', key: 'ABC-12', title: 'Plan MCP', url: null },
+      acceptanceCriteria: ['AC-1'],
+      filesToTouch: ['src/app.js'],
+      steps: [{ id: '1', description: 'Implement', acRefs: ['AC-1'] }]
+    };
+
+    const pub = await client.request('tools/call', { name: 'plan.publish', arguments: { id: 'ABC-12', plan } });
+    const pubPayload = toolPayload(pub);
+    assert.equal(pubPayload.published, true);
+
+    const get = await client.request('tools/call', { name: 'plan.get', arguments: { id: 'ABC-12' } });
+    const getPayload = toolPayload(get);
+    assert.equal(getPayload.found, true);
+    assert.equal(getPayload.valid, true);
+    assert.deepEqual(getPayload.plan.filesToTouch, ['src/app.js']);
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: plan.publish rejects ticket mismatch (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), { version: '1.0', tracker: { mode: 'atlassian' } });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-13', key: 'ABC-13', title: 'Plan mismatch', labels: [], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const plan = {
+      version: '1.0',
+      ticket: { id: 'ABC-999', key: 'ABC-999', title: 'Wrong target', url: null },
+      acceptanceCriteria: ['AC-1'],
+      filesToTouch: ['src/app.js'],
+      steps: [{ id: '1', description: 'Implement', acRefs: ['AC-1'] }]
+    };
+
+    const res = await client.request('tools/call', { name: 'plan.publish', arguments: { id: 'ABC-13', plan } });
+    assert.ok(res.error);
+    assert.match(String(res.error.message || ''), /ticket mismatch/);
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: non-canonical plan comments do not count as execution plan (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), { version: '1.0', tracker: { mode: 'atlassian' } });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        {
+          id: 'ABC-14',
+          key: 'ABC-14',
+          title: 'Non canonical plan comment',
+          labels: ['ai-state:approved'],
+          comments: [
+            'Spec: doc-14 docs/agency/doc-14.md',
+            'Test Plan: verify this manually {\"foo\":\"bar\"}'
+          ]
+        }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const docsDir = path.join(hostRoot, 'docs', 'agency');
+  writeJson(path.join(docsDir, 'doc-14.json'), { id: 'doc-14', title: 'Spec: ABC-14', status: 'APPROVED' });
+  fs.mkdirSync(docsDir, { recursive: true });
+  fs.writeFileSync(path.join(docsDir, 'doc-14.md'), 'Spec Status: APPROVED\n', 'utf8');
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake', AGENCY_DOCS_BACKEND: 'repo' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+    const sum = await client.request('tools/call', { name: 'workflow.summary', arguments: { id: 'ABC-14' } });
+    const payload = toolPayload(sum);
+    assert.equal(payload.evidence.plan.linked, false);
+    assert.ok(payload.missing.includes('execution plan'));
   } finally {
     proc.kill();
   }
