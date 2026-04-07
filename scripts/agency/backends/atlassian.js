@@ -410,6 +410,13 @@ function itemUrl(jiraBase, key) {
   return `${jiraBase}/browse/${encodeURIComponent(String(key))}`;
 }
 
+function normalizeTransitionName(value) {
+  return String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
 function normalizeIssue(jiraBase, issue) {
   const fields = issue.fields || {};
   const labels = Array.isArray(fields.labels) ? fields.labels.map(String).sort() : [];
@@ -571,11 +578,16 @@ async function tracker_set_labels({ id, add, remove }) {
 async function tracker_transition({ id, status }) {
   const { jiraBase } = getAtlassianBases();
   const desired = String(status);
+  const desiredNormalized = normalizeTransitionName(desired);
   const url = `${jiraBase}/rest/api/3/issue/${encodeURIComponent(String(id))}/transitions`;
 
   const available = await atlassianFetch(url);
   const transitions = Array.isArray(available.transitions) ? available.transitions : [];
-  const match = transitions.find((t) => String(t.name) === desired || String(t.to?.name || '') === desired);
+  const match = transitions.find((t) => {
+    const transitionName = normalizeTransitionName(t.name);
+    const targetStatus = normalizeTransitionName(t.to?.name || '');
+    return transitionName === desiredNormalized || targetStatus === desiredNormalized;
+  });
   if (!match) {
     return { ok: false, note: `No matching transition found for status="${desired}"` };
   }
@@ -722,6 +734,7 @@ module.exports = {
     adfToText,
     renderStorageHtml,
     extractSpecStatusFromStorage,
-    escapeCdata
+    escapeCdata,
+    normalizeTransitionName
   }
 };
