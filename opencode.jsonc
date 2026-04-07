@@ -44,7 +44,7 @@
     },
     "Planning Agent": {
       "model": "openai/gpt-5.4-mini",
-      "description": "Converts requirements into Architecture and Plans.",
+      "description": "Creates implementation specs and structured execution plans.",
       "prompt": "{file:./prompts/planning.md}"
     },
     "Developer Agent": {
@@ -68,7 +68,7 @@
     },
     "QA Engineer Agent": {
       "model": "openai/gpt-5.4-mini",
-      "description": "Generates and runs E2E tests.",
+      "description": "Designs risk-based test coverage and verifies implementation.",
       "prompt": "{file:./prompts/qa.md}"
     },
     "Project Manager Agent": {

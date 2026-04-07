@@ -467,7 +467,7 @@ function generateOpenCodeConfig(config, meta, { preset } = {}) {
     planning: {
       name: 'Planning Agent',
       prompt: 'planning.md',
-      desc: 'Converts requirements into Architecture and Plans.'
+      desc: 'Creates implementation specs and structured execution plans.'
     },
     architecture: {
       name: 'Architecture Agent',
@@ -497,7 +497,7 @@ function generateOpenCodeConfig(config, meta, { preset } = {}) {
     qa: {
       name: 'QA Engineer Agent',
       prompt: 'qa.md',
-      desc: 'Generates and runs E2E tests.'
+      desc: 'Designs risk-based test coverage and verifies implementation.'
     },
     pm: {
       name: 'Project Manager Agent',

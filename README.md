@@ -59,9 +59,9 @@ opencode --config opencode.jsonc
 
 If you get stuck, run: `./.agency/bin/agency doctor`
 
-## MVP: Jira + GitHub (Golden Path)
+## MVP: Jira + Confluence (Demo Path)
 
-Goal: run one ticket from `ai-state:ready-for-plan` → Spec created/approved → PR created/linked.
+Goal: run one ticket from backlog refinement → `ai-state:ready-for-plan` → Spec created/approved → implementation/verification workflow.
 
 1) Initialize in your host repo:
 
@@ -70,10 +70,9 @@ Goal: run one ticket from `ai-state:ready-for-plan` → Spec created/approved �
 ./.agency/bin/agency doctor
 ```
 
-2) Configure Jira + GitHub auth:
+2) Configure Jira + Confluence auth:
 - Set `ATLASSIAN_SITE`, `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN` (see `.agency/.env.example`).
 - Set `CONFLUENCE_SPACE_KEY` (and optionally `CONFLUENCE_BASE_URL`) for specs in Confluence.
-- Authenticate GitHub CLI: `gh auth login`
 - Optional live verification: `AGENCY_DOCTOR_LIVE=1 ./.agency/bin/agency doctor`
 
 3) Create/select a Jira issue and add label `ai-state:ready-for-plan`.
@@ -90,7 +89,10 @@ Goal: run one ticket from `ai-state:ready-for-plan` → Spec created/approved �
 
 6) Run the Dev agent (via OpenCode) which will:
 - verify spec status is `APPROVED`
-- create/link a PR via GitHub (`scm.pr_create`, `scm.pr_link_ticket`)
+- implement against the approved spec and execution plan
+- move the ticket into `ai-state:in-qa`
+
+7) Run the QA agent, then Review, then PM Release as needed.
 
 Helper commands:
 - Queue view: `./.agency/bin/agency next --label ai-state:ready-for-plan --limit 10`
@@ -106,17 +108,19 @@ This is the “happy path” your team runs day-to-day in the OpenCode TUI.
 2) In Jira, add label `ai-state:ready-for-plan` to a ticket.
 3) In OpenCode, run **Planning Agent**:
    - Select the ticket when prompted.
-   - Approve “create Spec + JSON Plan” when it asks to proceed.
+   - Approve “create Spec + execution plan” when it asks to proceed.
 4) In Confluence, set `Spec Status: APPROVED` on the newly created spec page.
 5) In OpenCode, run **Project Manager Agent (Governance Sync)**:
    - It should sync the approved spec back to Jira by applying `ai-state:approved`.
 6) In OpenCode, run **Developer Agent**:
-   - It verifies `ai-state:approved` + `Spec Status: APPROVED`, implements, then opens/links a GitHub PR.
+   - It verifies `ai-state:approved` + `Spec Status: APPROVED`, then implements.
    - It moves the ticket to `ai-state:in-qa`.
 7) In OpenCode, run **QA Engineer Agent**:
    - On PASS: it moves the ticket to `ai-state:verified`.
 8) In OpenCode, run **Code Reviewer Agent**:
    - On PASS: it adds `ai-state:reviewed`.
+9) In OpenCode, run **Project Manager Agent (Release)**:
+   - It verifies the required gates and posts the final release update.
 
 ## What This Is
 
@@ -292,13 +296,13 @@ Docs are a separate, vendor-agnostic capability surface (`docs.*`).
 - `atlassian` - Uses Confluence pages via the Atlassian backend (requires Confluence env vars).
 - `none` - Disables `docs.*` tools.
 
-### Jira + GitHub Together (Recommended)
+### Jira + Confluence Together (Recommended)
 
 Most teams use:
 
 - Atlassian (Jira) as the system of record for work: `tracker.*`
 - A docs provider for specs/approvals: `docs.*` (default is `repo`; optional `atlassian` for Confluence)
-- GitHub for PR workflow: `scm.*` (via `gh`)
+- Optional GitHub PR workflow: `scm.*` (via `gh`) when `scm.provider="github"`
 
 Configure that per-repo with:
 
@@ -306,7 +310,8 @@ Configure that per-repo with:
 {
   "version": "1.0",
   "tracker": { "mode": "atlassian" },
-  "scm": { "provider": "github" }
+  "docs": { "provider": "atlassian" },
+  "scm": { "provider": "none" }
 }
 ```
 
