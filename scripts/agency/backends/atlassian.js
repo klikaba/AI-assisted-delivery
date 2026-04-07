@@ -112,6 +112,106 @@ function toAdfTextDoc(text) {
   };
 }
 
+function toAdfInlineText(text) {
+  const value = String(text || '');
+  if (!value) return [];
+
+  const parts = [];
+  const lines = value.split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (line) parts.push({ type: 'text', text: line });
+    if (i < lines.length - 1) parts.push({ type: 'hardBreak' });
+  }
+  return parts;
+}
+
+function toAdfParagraph(text) {
+  return { type: 'paragraph', content: toAdfInlineText(text) };
+}
+
+function toAdfBulletList(items) {
+  return {
+    type: 'bulletList',
+    content: items.map((item) => ({
+      type: 'listItem',
+      content: [toAdfParagraph(item)]
+    }))
+  };
+}
+
+function toAdfCodeBlock(text, language) {
+  const attrs = {};
+  if (language) attrs.language = String(language);
+  return {
+    type: 'codeBlock',
+    attrs,
+    content: [{ type: 'text', text: String(text || '') }]
+  };
+}
+
+function toAdfCommentDoc(text) {
+  const raw = String(text || '').replace(/\r\n/g, '\n');
+  const lines = raw.split('\n');
+  const content = [];
+  let i = 0;
+
+  const isBlank = (line) => /^\s*$/.test(line);
+  const isBullet = (line) => /^\s*[-*]\s+/.test(line);
+  const isFence = (line) => /^\s*```/.test(line);
+
+  while (i < lines.length) {
+    if (isBlank(lines[i])) {
+      i += 1;
+      continue;
+    }
+
+    if (isFence(lines[i])) {
+      const first = lines[i].trim();
+      const language = first.slice(3).trim() || undefined;
+      i += 1;
+      const body = [];
+      while (i < lines.length && !isFence(lines[i])) {
+        body.push(lines[i]);
+        i += 1;
+      }
+      if (i < lines.length && isFence(lines[i])) i += 1;
+      content.push(toAdfCodeBlock(body.join('\n'), language));
+      continue;
+    }
+
+    if (isBullet(lines[i])) {
+      const items = [];
+      let current = null;
+      while (i < lines.length && !isBlank(lines[i])) {
+        const line = lines[i];
+        if (isBullet(line)) {
+          if (current !== null) items.push(current);
+          current = line.replace(/^\s*[-*]\s+/, '');
+        } else if (current !== null) {
+          current += `\n${line.trim()}`;
+        } else {
+          current = line.trim();
+        }
+        i += 1;
+      }
+      if (current !== null) items.push(current);
+      content.push(toAdfBulletList(items));
+      continue;
+    }
+
+    const paragraph = [];
+    while (i < lines.length && !isBlank(lines[i]) && !isFence(lines[i]) && !isBullet(lines[i])) {
+      paragraph.push(lines[i]);
+      i += 1;
+    }
+    content.push(toAdfParagraph(paragraph.join('\n')));
+  }
+
+  if (content.length === 0) return toAdfTextDoc('');
+  return { type: 'doc', version: 1, content };
+}
+
 function adfToText(node) {
   const parts = [];
 
@@ -132,7 +232,13 @@ function adfToText(node) {
       return;
     }
 
-    const isBlock = n.type === 'paragraph' || n.type === 'heading' || n.type === 'listItem';
+    if (n.type === 'codeBlock' && Array.isArray(n.content)) {
+      for (const c of n.content) walk(c);
+      parts.push('\n');
+      return;
+    }
+
+    const isBlock = n.type === 'paragraph' || n.type === 'heading' || n.type === 'listItem' || n.type === 'codeBlock';
     const before = parts.length;
     if (Array.isArray(n.content)) {
       for (const c of n.content) walk(c);
@@ -343,7 +449,7 @@ async function tracker_comment({ id, body }) {
   await atlassianFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body: toAdfTextDoc(body) })
+    body: JSON.stringify({ body: toAdfCommentDoc(body) })
   });
   return { ok: true };
 }
@@ -532,5 +638,9 @@ module.exports = {
     create: docs_create,
     get: docs_get,
     update: docs_update
+  },
+  __private: {
+    toAdfCommentDoc,
+    adfToText
   }
 };
