@@ -147,10 +147,11 @@ async function main() {
   trace.push({ op: 'tracker.comment', args: { id: item.id, body: `Spec: ${specId} ${specUrl}` } });
   await backend.tracker.comment({ id: item.id, body: `Spec: ${specId} ${specUrl}` });
 
-  trace.push({ op: 'tracker.comment', args: { id: item.id, body: '<execution plan json>' } });
-  await backend.tracker.comment({
-    id: item.id,
-    body: `Execution Plan (JSON)\n\n\`\`\`json\n${JSON.stringify(plan, null, 2)}\n\`\`\``
+  trace.push({ op: 'docs.update', args: { id: specId, body: '<execution plan json on spec>' } });
+  await docsBackend.docs.update({
+    id: specId,
+    body: `${docRes.page.body || ''}\n\n## Execution Plan (JSON)\n\n\`\`\`json\n${JSON.stringify(plan, null, 2)}\n\`\`\``,
+    status: docRes.page.status
   });
 
   // Relabel

@@ -284,7 +284,7 @@ test('agency mcp: tracker.update modifies canonical tracker fields (fake)', asyn
 
 test('agency mcp: plan.publish + plan.get expose canonical execution plan (fake)', async () => {
   const hostRoot = mkTempHost();
-  writeJson(path.join(hostRoot, '.agency-project.json'), { version: '1.0', tracker: { mode: 'atlassian' } });
+  writeJson(path.join(hostRoot, '.agency-project.json'), { version: '1.0', tracker: { mode: 'atlassian' }, docs: { provider: 'repo', repo: { dir: 'docs/agency' } } });
 
   const fixtureDir = path.join(hostRoot, '.agency-fixtures');
   writeJson(path.join(fixtureDir, 'state.json'), {
@@ -306,6 +306,18 @@ test('agency mcp: plan.publish + plan.get expose canonical execution plan (fake)
   try {
     await client.request('initialize', { protocolVersion: '2024-11-05' });
 
+    const created = await client.request('tools/call', {
+      name: 'docs.create',
+      arguments: { title: 'Spec: ABC-12', body: 'Spec Status: DRAFT\n\nSummary', status: 'DRAFT' }
+    });
+    const createdPayload = toolPayload(created);
+    const specId = createdPayload.page.id;
+    const specUrl = createdPayload.page.url;
+    await client.request('tools/call', {
+      name: 'tracker.comment',
+      arguments: { id: 'ABC-12', body: `Spec: ${specId} ${specUrl}` }
+    });
+
     const plan = {
       version: '1.0',
       ticket: { id: 'ABC-12', key: 'ABC-12', title: 'Plan MCP', url: null },
@@ -317,12 +329,85 @@ test('agency mcp: plan.publish + plan.get expose canonical execution plan (fake)
     const pub = await client.request('tools/call', { name: 'plan.publish', arguments: { id: 'ABC-12', plan } });
     const pubPayload = toolPayload(pub);
     assert.equal(pubPayload.published, true);
+    assert.equal(pubPayload.spec.id, specId);
 
     const get = await client.request('tools/call', { name: 'plan.get', arguments: { id: 'ABC-12' } });
     const getPayload = toolPayload(get);
     assert.equal(getPayload.found, true);
     assert.equal(getPayload.valid, true);
     assert.deepEqual(getPayload.plan.filesToTouch, ['src/app.js']);
+
+    const ticket = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-12' } });
+    const ticketPayload = toolPayload(ticket);
+    assert.equal(ticketPayload.item.comments.length, 1);
+    assert.match(String(ticketPayload.item.comments[0] || ''), /^Spec:/);
+
+    const spec = await client.request('tools/call', { name: 'docs.get', arguments: { id: specId } });
+    const specPayload = toolPayload(spec);
+    assert.match(String(specPayload.page.body || ''), /Execution Plan \(JSON\)/);
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: plan.publish accepts explicit spec_id before Jira spec comment exists (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), { version: '1.0', tracker: { mode: 'atlassian' }, docs: { provider: 'repo', repo: { dir: 'docs/agency' } } });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-12A', key: 'ABC-12A', title: 'Plan MCP first publish', labels: [], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const created = await client.request('tools/call', {
+      name: 'docs.create',
+      arguments: { title: 'Spec: ABC-12A', body: 'Spec Status: DRAFT\n\nSummary', status: 'DRAFT' }
+    });
+    const createdPayload = toolPayload(created);
+    const specId = createdPayload.page.id;
+
+    const plan = {
+      version: '1.0',
+      ticket: { id: 'ABC-12A', key: 'ABC-12A', title: 'Plan MCP first publish', url: null },
+      acceptanceCriteria: ['AC-1'],
+      filesToTouch: ['src/app.js'],
+      steps: [{ id: '1', description: 'Implement', acRefs: ['AC-1'] }]
+    };
+
+    const pub = await client.request('tools/call', {
+      name: 'plan.publish',
+      arguments: { id: 'ABC-12A', spec_id: specId, plan }
+    });
+    const pubPayload = toolPayload(pub);
+    assert.equal(pubPayload.published, true);
+    assert.equal(pubPayload.spec.id, specId);
+
+    const get = await client.request('tools/call', { name: 'plan.get', arguments: { id: 'ABC-12A' } });
+    const getPayload = toolPayload(get);
+    assert.equal(getPayload.found, false);
+
+    const spec = await client.request('tools/call', { name: 'docs.get', arguments: { id: specId } });
+    const specPayload = toolPayload(spec);
+    assert.match(String(specPayload.page.body || ''), /Execution Plan \(JSON\)/);
+
+    const ticket = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-12A' } });
+    const ticketPayload = toolPayload(ticket);
+    assert.equal(ticketPayload.item.comments.length, 0);
   } finally {
     proc.kill();
   }
@@ -409,6 +494,72 @@ test('agency mcp: non-canonical plan comments do not count as execution plan (fa
     const payload = toolPayload(sum);
     assert.equal(payload.evidence.plan.linked, false);
     assert.ok(payload.missing.includes('execution plan'));
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.summary prefers execution plan stored on linked spec (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), { version: '1.0', tracker: { mode: 'atlassian' }, docs: { provider: 'repo', repo: { dir: 'docs/agency' } } });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        {
+          id: 'ABC-15',
+          key: 'ABC-15',
+          title: 'Plan stored on spec',
+          labels: ['ai-state:approved'],
+          comments: ['Spec: doc-15 docs/agency/doc-15.md']
+        }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const docsDir = path.join(hostRoot, 'docs', 'agency');
+  writeJson(path.join(docsDir, 'doc-15.json'), { id: 'doc-15', title: 'Spec: ABC-15', status: 'APPROVED' });
+  fs.mkdirSync(docsDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(docsDir, 'doc-15.md'),
+    [
+      'Spec Status: APPROVED',
+      '',
+      '## Summary',
+      'Spec body',
+      '',
+      '## Execution Plan (JSON)',
+      '',
+      '```json',
+      JSON.stringify({
+        version: '1.0',
+        ticket: { id: 'ABC-15', key: 'ABC-15', title: 'Plan stored on spec', url: null },
+        acceptanceCriteria: ['AC-1'],
+        filesToTouch: ['src/spec.js'],
+        steps: [{ id: '1', description: 'Implement', acRefs: ['AC-1'] }]
+      }, null, 2),
+      '```'
+    ].join('\n'),
+    'utf8'
+  );
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake', AGENCY_DOCS_BACKEND: 'repo' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+    const sum = await client.request('tools/call', { name: 'workflow.summary', arguments: { id: 'ABC-15' } });
+    const payload = toolPayload(sum);
+    assert.equal(payload.evidence.plan.linked, true);
+    assert.equal(payload.evidence.plan.valid, true);
+    assert.equal(payload.evidence.plan.ref.marker, 'docs');
+    assert.deepEqual(payload.evidence.plan.plan.filesToTouch, ['src/spec.js']);
   } finally {
     proc.kill();
   }

@@ -24,6 +24,7 @@ const {
   parseSpecRefFromComments,
   parsePrRefFromComments,
   parseGitHubPrNumberFromUrl,
+  parsePlanArtifactFromText,
   parseQaMarker,
   parseReviewMarker,
   parseSecurityMarker,
@@ -35,6 +36,31 @@ const {
   workflowGate
 } = require('./agency/workflow');
 const { validatePlan } = require('./schema/plan');
+
+function executionPlanMarkdown(plan) {
+  return `## Execution Plan (JSON)\n\n\`\`\`json\n${JSON.stringify(plan, null, 2)}\n\`\`\``;
+}
+
+function executionPlanStorageHtml(plan) {
+  const json = JSON.stringify(plan, null, 2).replaceAll(']]>', ']]]]><![CDATA[>');
+  return `<h2>Execution Plan (JSON)</h2>\n<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">json</ac:parameter><ac:plain-text-body><![CDATA[${json}]]></ac:plain-text-body></ac:structured-macro>`;
+}
+
+function upsertExecutionPlanMarkdown(body, plan) {
+  const section = executionPlanMarkdown(plan);
+  const source = String(body || '').trim();
+  const re = /(^|\n)##\s+Execution Plan \(JSON\)\s*\n[\s\S]*?(?=\n##\s+|\n#\s+|$)/i;
+  if (re.test(source)) return source.replace(re, `$1${section}`);
+  return source ? `${source}\n\n${section}` : section;
+}
+
+function upsertExecutionPlanStorage(body, plan) {
+  const section = executionPlanStorageHtml(plan);
+  const source = String(body || '').trim();
+  const re = /<h2>\s*Execution Plan \(JSON\)\s*<\/h2>[\s\S]*?(?=<h1\b|<h2\b|$)/i;
+  if (re.test(source)) return source.replace(re, section);
+  return source ? `${source}\n${section}` : section;
+}
 
 function writeStderr(line) {
   process.stderr.write(`${line}\n`);
@@ -170,13 +196,14 @@ function toolList() {
     },
     {
       name: 'plan.publish',
-      description: 'Publish a structured execution plan to the tracker as the canonical machine-readable handoff artifact.',
+      description: 'Publish a structured execution plan to the linked spec as the canonical machine-readable handoff artifact.',
       inputSchema: {
         type: 'object',
         additionalProperties: false,
         required: ['id', 'plan'],
         properties: {
           id: { type: 'string' },
+          spec_id: { type: 'string' },
           plan: { type: 'object', additionalProperties: true }
         }
       }
@@ -546,7 +573,9 @@ async function callTool(name, args) {
 
   if (name === 'plan.get' || name === 'plan.publish') {
     const trackerBackendId = selectBackend('tracker', mode, config);
+    const docsBackendId = selectBackend('docs', mode, config);
     const trackerBackend = loadBackend('tracker', trackerBackendId);
+    const docsBackend = loadBackend('docs', docsBackendId);
 
     if (name === 'plan.get') {
       const ticketId = args?.id ? String(args.id) : '';
@@ -554,7 +583,22 @@ async function callTool(name, args) {
       const ticketRes = await trackerBackend.tracker.get({ id: ticketId });
       const ticket = ticketRes?.item;
       const comments = Array.isArray(ticket?.comments) ? ticket.comments : [];
-      const ref = parsePlanArtifactFromComments(comments);
+      const specRef = parseSpecRefFromComments(comments);
+      let ref = null;
+      if (specRef?.id && typeof docsBackend.docs?.get === 'function') {
+        try {
+          const pageRes = await docsBackend.docs.get({ id: String(specRef.id) });
+          const page = pageRes?.page;
+          ref = parsePlanArtifactFromText(page?.body || '', {
+            marker: 'docs',
+            id: String(specRef.id),
+            url: page?.url ? String(page.url) : (specRef.url || null)
+          });
+        } catch {
+          ref = null;
+        }
+      }
+      if (!ref) ref = parsePlanArtifactFromComments(comments);
       return {
         version: '1.0',
         ticket: {
@@ -580,13 +624,29 @@ async function callTool(name, args) {
     if (String(plan?.ticket?.id || '') !== ticketId) {
       throw new Error(`plan.publish ticket mismatch: plan.ticket.id=${String(plan?.ticket?.id || '')} does not match target id=${ticketId}`);
     }
-    const body = `Execution Plan (JSON)\n\n\`\`\`json\n${JSON.stringify(plan, null, 2)}\n\`\`\``;
+    const ticketRes = await trackerBackend.tracker.get({ id: ticketId });
+    const ticket = ticketRes?.item;
+    const comments = Array.isArray(ticket?.comments) ? ticket.comments : [];
+    const specRef = parseSpecRefFromComments(comments);
+    const targetSpecId = args?.spec_id ? String(args.spec_id) : String(specRef?.id || '');
+    if (!targetSpecId) {
+      throw new Error('plan.publish requires a spec target (pass spec_id on first publish, or link the ticket with `Spec: <id> <url>`)');
+    }
+    const pageRes = await docsBackend.docs.get({ id: targetSpecId });
+    const page = pageRes?.page;
+    if (!page) throw new Error(`plan.publish could not load linked Spec: ${targetSpecId}`);
+    const body = docsBackendId === 'atlassian'
+      ? upsertExecutionPlanStorage(page.body || '', plan)
+      : upsertExecutionPlanMarkdown(page.body || '', plan);
     if (!dryRun) {
-      await trackerBackend.tracker.comment({ id: ticketId, body });
+      const updateArgs = { id: targetSpecId, body, status: page.status };
+      if (docsBackendId === 'atlassian') updateArgs.body_format = 'storage';
+      await docsBackend.docs.update(updateArgs);
     }
     return {
       version: '1.0',
       ticket: { id: ticketId },
+      spec: { id: targetSpecId, url: page?.url ? String(page.url) : (specRef?.url || null) },
       dry_run: dryRun,
       published: !dryRun,
       plan,
@@ -652,7 +712,7 @@ async function callTool(name, args) {
 
     const specRef = parseSpecRefFromComments(comments);
     const prRef = parsePrRefFromComments(comments);
-    const planRef = parsePlanArtifactFromComments(comments);
+    let planRef = null;
     const qaMarker = parseQaMarker(comments);
     const reviewMarker = parseReviewMarker(comments);
     const securityMarker = parseSecurityMarker(comments);
@@ -669,11 +729,19 @@ async function callTool(name, args) {
           url: page?.url ? String(page.url) : (specRef.url || null),
           title: page?.title ? String(page.title) : null
         };
+        planRef = parsePlanArtifactFromText(page?.body || '', {
+          marker: 'docs',
+          id: String(specRef.id),
+          url: page?.url ? String(page.url) : (specRef.url || null)
+        });
       } catch (err) {
         spec = { id: String(specRef.id), status: 'UNKNOWN', url: specRef.url || null, title: null, error: err && err.message ? err.message : String(err) };
       }
     } else if (specRef && specRef.url) {
       spec = { id: null, status: 'UNKNOWN', url: specRef.url, title: null };
+    }
+    if (!planRef) {
+      planRef = parsePlanArtifactFromComments(comments);
     }
 
     let pr = null;

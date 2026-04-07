@@ -575,8 +575,9 @@ If you don’t want the full SDLC menu in the OpenCode TUI, you can generate foc
      - Risks / Open Questions
      - Validation / QA Strategy
      - Rollout / Operational Notes
+   - Diagram convention: when diagrams are needed, the Planning Agent should author them as fenced `mermaid` blocks under `Diagram(s)`. Confluence will store these cleanly as formatted code blocks, and the Mermaid source remains portable.
    - Comments on the ticket with a Spec reference (prefer `Spec: <id> <url>`)
-   - Publishes the structured JSON execution plan via `plan.publish` as a secondary machine-readable handoff
+   - Publishes the structured JSON execution plan via `plan.publish` into the linked Spec page as a secondary machine-readable handoff
    - Moves label to `ai-state:plan-review`
 3. Human review: update `Spec Status` to `APPROVED` (or `CHANGES REQUESTED`).
 4. Run **PM (Governance Sync)** to sync `Spec Status` back to ticket labels:

@@ -670,7 +670,7 @@ async function docs_get({ id }) {
   };
 }
 
-async function docs_update({ id, title, body, status }) {
+async function docs_update({ id, title, body, status, body_format }) {
   const { confluenceBase } = getAtlassianBases();
   const existing = await docs_get({ id });
   const currentVersion = Number(existing.page._version || 1);
@@ -679,7 +679,9 @@ async function docs_update({ id, title, body, status }) {
   const confluenceStatus = nextSpecStatus === 'DRAFT' ? 'draft' : 'current';
   const rawBody = body !== undefined ? String(body) : null;
   const htmlBody = body !== undefined
-    ? renderStorageHtml({ body: rawBody, specStatus: nextSpecStatus })
+    ? (String(body_format || '') === 'storage'
+      ? String(rawBody)
+      : renderStorageHtml({ body: rawBody, specStatus: nextSpecStatus }))
     : updateSpecStatusInStorage(existing.page.body, nextSpecStatus);
 
   const payload = {

@@ -121,10 +121,10 @@ test('agency cli: plan publish/get round-trips on fake backend', () => {
   writeJson(path.join(hostRoot, '.agency-fixtures', 'state.json'), {
     tracker: {
       items: [
-        { id: 'ABC-3', key: 'ABC-3', title: 'Plan target', labels: [], comments: [] }
+        { id: 'ABC-3', key: 'ABC-3', title: 'Plan target', labels: [], comments: ['Spec: page-3 https://fake.local/docs/page-3'] }
       ]
     },
-    docs: { pages: [] },
+    docs: { pages: [{ id: 'page-3', title: 'Spec: ABC-3', body: 'Spec Status: DRAFT\n\nSummary', status: 'DRAFT', parentId: null, url: 'https://fake.local/docs/page-3' }] },
     scm: { prs: [] }
   });
 
@@ -155,6 +155,15 @@ test('agency cli: plan publish/get round-trips on fake backend', () => {
   assert.equal(payload.valid, true);
   assert.equal(payload.plan.ticket.id, 'ABC-3');
   assert.deepEqual(payload.plan.filesToTouch, ['src/app.js']);
+
+  const spec = runAgency(
+    ['docs', 'get', '--id', 'page-3', '--json'],
+    hostRoot,
+    { AGENCY_INTEGRATION_BACKEND: 'fake' }
+  );
+  assert.equal(spec.status, 0, spec.stderr || spec.stdout);
+  const specPayload = JSON.parse(spec.stdout);
+  assert.match(String(specPayload.page.body || ''), /Execution Plan \(JSON\)/);
 });
 
 test('agency cli: plan publish rejects ticket mismatch', () => {
@@ -189,4 +198,60 @@ test('agency cli: plan publish rejects ticket mismatch', () => {
   );
   assert.notEqual(pub.status, 0);
   assert.match(pub.stderr, /ticket mismatch/);
+});
+
+test('agency cli: plan publish accepts --spec-id before Jira spec comment exists', () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' },
+    docs: { provider: 'repo', repo: { dir: 'docs/agency' } }
+  });
+  writeJson(path.join(hostRoot, '.agency-fixtures', 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-5', key: 'ABC-5', title: 'First publish target', labels: [], comments: [] }
+      ]
+    },
+    docs: {
+      pages: [
+        { id: 'page-5', title: 'Spec: ABC-5', status: 'DRAFT', body: 'Spec Status: DRAFT\n\nSummary', url: 'https://fake.local/docs/page-5' }
+      ]
+    },
+    scm: { prs: [] }
+  });
+
+  const planFile = path.join(hostRoot, 'plan-first-publish.json');
+  writeJson(planFile, {
+    version: '1.0',
+    ticket: { id: 'ABC-5', key: 'ABC-5', title: 'First publish target', url: null },
+    acceptanceCriteria: ['AC-1'],
+    filesToTouch: ['src/app.js'],
+    steps: [{ id: '1', description: 'Implement', acRefs: ['AC-1'] }]
+  });
+
+  const pub = runAgency(
+    ['plan', 'publish', '--id', 'ABC-5', '--spec-id', 'page-5', '--file', planFile, '--json'],
+    hostRoot,
+    { AGENCY_INTEGRATION_BACKEND: 'fake' }
+  );
+  assert.equal(pub.status, 0, pub.stderr || pub.stdout);
+
+  const spec = runAgency(
+    ['docs', 'get', '--id', 'page-5', '--json'],
+    hostRoot,
+    { AGENCY_INTEGRATION_BACKEND: 'fake' }
+  );
+  assert.equal(spec.status, 0, spec.stderr || spec.stdout);
+  const specPayload = JSON.parse(spec.stdout);
+  assert.match(String(specPayload.page.body || ''), /Execution Plan \(JSON\)/);
+
+  const ticket = runAgency(
+    ['tracker', 'get', '--id', 'ABC-5', '--json'],
+    hostRoot,
+    { AGENCY_INTEGRATION_BACKEND: 'fake' }
+  );
+  assert.equal(ticket.status, 0, ticket.stderr || ticket.stdout);
+  const ticketPayload = JSON.parse(ticket.stdout);
+  assert.equal(Array.isArray(ticketPayload.item.comments) ? ticketPayload.item.comments.length : 0, 0);
 });

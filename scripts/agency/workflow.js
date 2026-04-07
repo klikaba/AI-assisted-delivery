@@ -67,6 +67,8 @@ function parseTestCasesRefFromComments(comments) {
 
 function extractJsonBlock(comment) {
   const text = String(comment || '');
+  const confluenceCode = /<ac:plain-text-body><!\[CDATA\[([\s\S]*?)\]\]><\/ac:plain-text-body>/i.exec(text);
+  if (confluenceCode) return confluenceCode[1].replaceAll(']]]]><![CDATA[>', ']]>').trim();
   const fenced = /```json\s*([\s\S]*?)```/i.exec(text) || /```\s*([\s\S]*?)```/i.exec(text);
   if (fenced) return fenced[1].trim();
 
@@ -76,37 +78,42 @@ function extractJsonBlock(comment) {
   return null;
 }
 
+function parsePlanArtifactFromText(text, ref = null) {
+  const source = String(text || '');
+  if (!/Execution\s+Plan\s*\(JSON\)/i.test(source)) return null;
+  const jsonText = extractJsonBlock(source);
+  if (!jsonText) {
+    return {
+      ref,
+      plan: null,
+      valid: false,
+      errors: ['Execution plan found but JSON payload could not be extracted']
+    };
+  }
+  try {
+    const plan = JSON.parse(jsonText);
+    const validation = validatePlan(plan);
+    return {
+      ref,
+      plan,
+      valid: validation.ok,
+      errors: validation.ok ? [] : validation.errors
+    };
+  } catch (err) {
+    return {
+      ref,
+      plan: null,
+      valid: false,
+      errors: [`Plan JSON parse failed: ${err && err.message ? err.message : String(err)}`]
+    };
+  }
+}
+
 function parsePlanArtifactFromComments(comments) {
   const list = Array.isArray(comments) ? comments.map(String) : [];
   for (let i = list.length - 1; i >= 0; i -= 1) {
-    const c = list[i];
-    if (!/Execution\s+Plan\s*\(JSON\)/i.test(c)) continue;
-    const jsonText = extractJsonBlock(c);
-    if (!jsonText) {
-      return {
-        ref: { index: i, marker: 'comment' },
-        plan: null,
-        valid: false,
-        errors: ['Plan comment found but JSON payload could not be extracted']
-      };
-    }
-    try {
-      const plan = JSON.parse(jsonText);
-      const validation = validatePlan(plan);
-      return {
-        ref: { index: i, marker: 'comment' },
-        plan,
-        valid: validation.ok,
-        errors: validation.ok ? [] : validation.errors
-      };
-    } catch (err) {
-      return {
-        ref: { index: i, marker: 'comment' },
-        plan: null,
-        valid: false,
-        errors: [`Plan JSON parse failed: ${err && err.message ? err.message : String(err)}`]
-      };
-    }
+    const parsed = parsePlanArtifactFromText(list[i], { index: i, marker: 'comment' });
+    if (parsed) return parsed;
   }
   return null;
 }
@@ -142,6 +149,7 @@ module.exports = {
   parseReviewMarker,
   parseSecurityMarker,
   parseTestCasesRefFromComments,
+  parsePlanArtifactFromText,
   parsePlanArtifactFromComments,
   normalizeStatus,
   safeLabelIncludes,

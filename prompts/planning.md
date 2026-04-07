@@ -40,6 +40,7 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
      - state transitions
      - request/data flow changes
      - non-obvious architecture changes
+   - When you include a diagram, write it under `Diagram(s)` as a fenced `mermaid` code block. Treat Mermaid as the canonical diagram source format for planning specs.
    - Draft the derived implementation plan with:
      - assumptions
      - files/systems likely impacted
@@ -51,13 +52,14 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 5. **Execution:** Only when user approves:
    - If no linked Spec exists, create one via `docs.create` (Status: DRAFT).
    - If a linked Spec already exists in `DRAFT` or `CHANGES REQUESTED`, update it via `docs.update` instead of creating a duplicate.
+   - If you just created the Spec in this session and the ticket does not yet have a `Spec: <id> <url>` comment, pass the new Spec id directly to `plan.publish`.
    - The Spec must be the primary artifact and should follow the required section structure above, including architecture notes and any required diagrams.
-   - Render the structured execution plan via `plan.publish` with `dry_run=true` so you can include the canonical execution-plan block in the final Jira update without creating an intermediate Jira comment.
+   - Publish the structured execution plan via `plan.publish` into the linked Spec page as a secondary machine-readable artifact. The execution plan must live in the Spec page, not in Jira comments.
    - **Transition Status:** `Waiting for Approval` (if your Jira workflow supports this status; otherwise skip).
    - Use `workflow.apply` once to move the ticket into `<plan_review>` (default: `ai-state:plan-review`) and post a **single consolidated Jira comment** that contains:
      - a short planning summary
      - `Spec: <id> <url>`
-     - the canonical `Execution Plan (JSON)` block
+     - a short note that the execution plan is stored in the linked Spec
    - Do not post separate intermediate Jira comments during the same planning session.
 6. **Signal:** End with: `✅ PLANNING COMPLETE: [TICKET_KEY] is waiting for approval.`
 
@@ -69,6 +71,7 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 ## Responsibilities & Workflow
 1. **Spec Lifecycle (Docs):** Create a new spec when none exists, otherwise revise the linked draft/changes-requested spec. You MUST preserve or set `Spec Status: DRAFT` during planning work.
 2. **Implementation Spec:** Produce a real implementation Spec as the primary planning artifact. It should use the required section structure and contain architecture notes and diagrams when warranted by system complexity, cross-component behavior, or non-obvious flows.
+   - When a diagram is warranted, encode it as fenced Mermaid under the `Diagram(s)` section so it remains readable and portable even if Confluence renders it as a formatted code block instead of a native diagram.
 3. **Execution Plan:** Generate a structured JSON plan as a secondary, machine-readable handoff that includes `filesToTouch`, `steps`, `acceptanceCriteria`, `risks`, and `validation`.
 4. **State Transition:** 
    - Start: Move to `In Planning`.
@@ -77,8 +80,7 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 
 ## Tools Usage
 - **Workflow Tools:** `capabilities.get` (confirm docs/tracker capabilities before generating the spec and execution plan).
-- **Plan Tools:** `plan.publish` (publish the canonical structured execution plan).
-  - Prefer `dry_run=true` when you need to render the plan for inclusion in one final consolidated Jira comment.
+- **Plan Tools:** `plan.publish` (publish the canonical structured execution plan into the linked Spec page).
 - **Agency MCP (Capability Tools):** `tracker.get`, `tracker.transition`, `docs.create`, `docs.get`, `docs.update`.
 - **Workflow Tools:** `workflow.queue` (startup listing with Gate Status).
 - **Workflow Tools:** `workflow.gate_status` (standard Gate Status rendering).

@@ -19,7 +19,7 @@
  */
 
 const { loadResolvedConfig, selectBackend, loadBackend } = require('./agency/runtime');
-const { parsePlanArtifactFromComments } = require('./agency/workflow');
+const { parseSpecRefFromComments, parsePlanArtifactFromComments, parsePlanArtifactFromText } = require('./agency/workflow');
 const { validatePlan } = require('./schema/plan');
 
 function parseArgs(argv) {
@@ -95,7 +95,7 @@ Domains/actions:
   tracker set-labels --id <id> [--add <label> ...] [--remove <label> ...] [--json]
 
   plan get         --id <id> [--json]
-  plan publish     --id <id> --file <path> [--json]
+  plan publish     --id <id> --file <path> [--spec-id <id>] [--json]
 
   docs create      --title <title> --body <body> [--status DRAFT] [--parent-id <id>] [--json]
   docs get         --id <id> [--json]
@@ -115,6 +115,27 @@ Environment overrides:
   AGENCY_SCM_BACKEND=fake|github|none   Force SCM backend
   AGENCY_FIXTURE_DIR=<path>             Fake backend fixtures directory
 `);
+}
+
+function executionPlanMarkdown(plan) {
+  return `## Execution Plan (JSON)\n\n\`\`\`json\n${JSON.stringify(plan, null, 2)}\n\`\`\``;
+}
+
+function upsertExecutionPlanMarkdown(body, plan) {
+  const section = executionPlanMarkdown(plan);
+  const source = String(body || '').trim();
+  const re = /(^|\n)##\s+Execution Plan \(JSON\)\s*\n[\s\S]*?(?=\n##\s+|\n#\s+|$)/i;
+  if (re.test(source)) return source.replace(re, `$1${section}`);
+  return source ? `${source}\n\n${section}` : section;
+}
+
+function upsertExecutionPlanStorage(body, plan) {
+  const json = JSON.stringify(plan, null, 2).replaceAll(']]>', ']]]]><![CDATA[>');
+  const section = `<h2>Execution Plan (JSON)</h2>\n<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">json</ac:parameter><ac:plain-text-body><![CDATA[${json}]]></ac:plain-text-body></ac:structured-macro>`;
+  const source = String(body || '').trim();
+  const re = /<h2>\s*Execution Plan \(JSON\)\s*<\/h2>[\s\S]*?(?=<h1\b|<h2\b|$)/i;
+  if (re.test(source)) return source.replace(re, section);
+  return source ? `${source}\n${section}` : section;
 }
 
 async function main() {
@@ -187,14 +208,31 @@ async function main() {
 
     if (domain === 'plan') {
       const trackerBackendId = selectBackend('tracker', mode, config);
+      const docsBackendId = selectBackend('docs', mode, config);
       const trackerBackend = loadBackend('tracker', trackerBackendId);
+      const docsBackend = loadBackend('docs', docsBackendId);
 
       if (action === 'get') {
         if (!flags.id) die('plan get requires --id');
         const ticketRes = await trackerBackend.tracker.get({ id: flags.id });
         const ticket = ticketRes?.item;
         const comments = Array.isArray(ticket?.comments) ? ticket.comments : [];
-        const ref = parsePlanArtifactFromComments(comments);
+        const specRef = parseSpecRefFromComments(comments);
+        let ref = null;
+        if (specRef?.id && typeof docsBackend.docs?.get === 'function') {
+          try {
+            const pageRes = await docsBackend.docs.get({ id: String(specRef.id) });
+            const page = pageRes?.page;
+            ref = parsePlanArtifactFromText(page?.body || '', {
+              marker: 'docs',
+              id: String(specRef.id),
+              url: page?.url ? String(page.url) : (specRef.url || null)
+            });
+          } catch {
+            ref = null;
+          }
+        }
+        if (!ref) ref = parsePlanArtifactFromComments(comments);
         jsonOut({
           version: '1.0',
           ticket: {
@@ -228,9 +266,21 @@ async function main() {
         if (String(plan?.ticket?.id || '') !== String(flags.id)) {
           die(`plan publish ticket mismatch: plan.ticket.id=${String(plan?.ticket?.id || '')} does not match target id=${String(flags.id)}`);
         }
-        const body = `Execution Plan (JSON)\n\n\`\`\`json\n${JSON.stringify(plan, null, 2)}\n\`\`\``;
-        const res = await trackerBackend.tracker.comment({ id: flags.id, body });
-        jsonOut({ version: '1.0', ok: true, result: res, plan }, args.json);
+        const ticketRes = await trackerBackend.tracker.get({ id: flags.id });
+        const ticket = ticketRes?.item;
+        const comments = Array.isArray(ticket?.comments) ? ticket.comments : [];
+        const specRef = parseSpecRefFromComments(comments);
+        const targetSpecId = flags['spec-id'] ? String(flags['spec-id']) : String(specRef?.id || '');
+        if (!targetSpecId) die('plan publish requires a spec target (use --spec-id on first publish, or link the ticket with `Spec: <id> <url>`)');
+        const pageRes = await docsBackend.docs.get({ id: targetSpecId });
+        const page = pageRes?.page;
+        const body = docsBackendId === 'atlassian'
+          ? upsertExecutionPlanStorage(page.body || '', plan)
+          : upsertExecutionPlanMarkdown(page.body || '', plan);
+        const updateArgs = { id: targetSpecId, body, status: page.status };
+        if (docsBackendId === 'atlassian') updateArgs.body_format = 'storage';
+        const res = await docsBackend.docs.update(updateArgs);
+        jsonOut({ version: '1.0', ok: true, result: res, plan, spec: { id: targetSpecId, url: page?.url || specRef?.url || null } }, args.json);
         return;
       }
 
