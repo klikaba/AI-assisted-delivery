@@ -261,6 +261,13 @@ async function main() {
         } catch (err) {
           die(`plan publish invalid JSON file: ${err && err.message ? err.message : String(err)}`);
         }
+        if (typeof plan === 'string') {
+          try {
+            plan = JSON.parse(plan);
+          } catch (err) {
+            die(`plan publish invalid nested JSON: ${err && err.message ? err.message : String(err)}`);
+          }
+        }
         const validation = validatePlan(plan);
         if (!validation.ok) die(`plan publish invalid plan: ${validation.errors.join('; ')}`);
         if (String(plan?.ticket?.id || '') !== String(flags.id)) {

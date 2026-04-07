@@ -622,7 +622,7 @@ async function tracker_update({ id, title, body }) {
 async function tracker_set_labels({ id, add, remove }) {
   const { jiraBase } = getAtlassianBases();
   const addList = Array.from(new Set((add || []).map(String).filter(Boolean)));
-  const removeList = Array.from(new Set((remove || []).map(String).filter(Boolean)));
+  const removeList = Array.from(new Set((remove || []).map(String).filter(Boolean))).filter((label) => !addList.includes(label));
 
   const url = `${jiraBase}/rest/api/3/issue/${encodeURIComponent(String(id))}`;
   const update = [];
@@ -640,8 +640,31 @@ async function tracker_set_labels({ id, add, remove }) {
     body: JSON.stringify({ update: { labels: update } })
   });
 
+  // Jira label writes can be briefly stale on the immediate readback.
+  // Verify the intended final label set for a short window before failing.
+  const verifyAttempts = clamp(Number(process.env.AGENCY_ATLASSIAN_LABEL_VERIFY_ATTEMPTS || 3), 1, 10);
+  const verifyDelayMs = clamp(Number(process.env.AGENCY_ATLASSIAN_LABEL_VERIFY_DELAY_MS || 250), 50, 5000);
+  for (let attempt = 0; attempt < verifyAttempts; attempt += 1) {
+    const current = await tracker_get({ id });
+    const labels = Array.isArray(current.item.labels) ? current.item.labels.map(String).sort() : [];
+    const hasAdds = addList.every((label) => labels.includes(label));
+    const removed = removeList.every((label) => !labels.includes(label));
+    if (hasAdds && removed) {
+      return { ok: true, labels };
+    }
+    if (attempt < verifyAttempts - 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await sleep(verifyDelayMs);
+    }
+  }
+
   const current = await tracker_get({ id });
-  return { ok: true, labels: Array.isArray(current.item.labels) ? current.item.labels.map(String).sort() : [] };
+  const labels = Array.isArray(current.item.labels) ? current.item.labels.map(String).sort() : [];
+  return {
+    ok: false,
+    note: `Label verification failed after update. Expected add=[${addList.join(', ')}] remove=[${removeList.join(', ')}] got=[${labels.join(', ')}]`,
+    labels
+  };
 }
 
 async function tracker_transition({ id, status }) {
@@ -677,15 +700,17 @@ async function docs_create({ title, body, status, parentId }) {
   const spaceKey = requireEnv('CONFLUENCE_SPACE_KEY');
 
   const specStatus = normalizeSpecStatus(status);
-  const confluenceStatus = specStatus === 'DRAFT' ? 'draft' : 'current';
   const sourceBody = coerceStorageSourceBody(body);
   const htmlBody = renderStorageHtml({ body: sourceBody, specStatus });
+
+  const normalizedParentId = parentId !== undefined && parentId !== null ? String(parentId).trim() : '';
+  const validParentId = /^\d+$/.test(normalizedParentId) ? normalizedParentId : null;
 
   const payload = {
     type: 'page',
     title: String(title || ''),
     space: { key: spaceKey },
-    status: confluenceStatus,
+    status: 'current',
     body: {
       storage: {
         representation: 'storage',
@@ -694,15 +719,43 @@ async function docs_create({ title, body, status, parentId }) {
     }
   };
 
-  if (parentId) {
-    payload.ancestors = [{ id: String(parentId) }];
+  if (validParentId) {
+    payload.ancestors = [{ id: validParentId }];
   }
 
-  const data = await atlassianFetch(`${confluenceBase}/rest/api/content`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  let data;
+  let effectiveParentId = validParentId;
+  try {
+    data = await atlassianFetch(`${confluenceBase}/rest/api/content`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    const message = String(err && err.message ? err.message : err);
+    if (!effectiveParentId || !/parent ID specified does not exist|NotFoundException/i.test(message)) throw err;
+
+    let parentMissing = false;
+    try {
+      await atlassianFetch(`${confluenceBase}/rest/api/content/${encodeURIComponent(effectiveParentId)}`);
+    } catch (parentErr) {
+      const parentMessage = String(parentErr && parentErr.message ? parentErr.message : parentErr);
+      parentMissing = /HTTP 404|NotFoundException/i.test(parentMessage);
+    }
+    if (!parentMissing) throw err;
+
+    const retryPayload = {
+      ...payload
+    };
+    delete retryPayload.ancestors;
+
+    data = await atlassianFetch(`${confluenceBase}/rest/api/content`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(retryPayload)
+    });
+    effectiveParentId = null;
+  }
 
   const pageId = String(data.id);
   return {
@@ -711,7 +764,7 @@ async function docs_create({ title, body, status, parentId }) {
       title: data.title || '',
       body: htmlBody,
       status: specStatus,
-      parentId: parentId ? String(parentId) : null,
+      parentId: effectiveParentId,
       url: data._links?.base && data._links?.webui ? `${data._links.base}${data._links.webui}` : null
     }
   };
@@ -719,9 +772,15 @@ async function docs_create({ title, body, status, parentId }) {
 
 async function docs_get({ id }) {
   const { confluenceBase } = getAtlassianBases();
-  const data = await atlassianFetch(
-    `${confluenceBase}/rest/api/content/${encodeURIComponent(String(id))}?expand=body.storage,version,_links`
-  );
+  const baseUrl = `${confluenceBase}/rest/api/content/${encodeURIComponent(String(id))}?expand=body.storage,version,_links`;
+  let data;
+  try {
+    data = await atlassianFetch(baseUrl);
+  } catch (err) {
+    const message = String(err && err.message ? err.message : err);
+    if (!/HTTP 404|NotFoundException/i.test(message)) throw err;
+    data = await atlassianFetch(`${baseUrl}&status=draft`);
+  }
 
   const storage = data.body?.storage?.value || '';
   const specStatus = extractSpecStatusFromStorage(storage);
@@ -746,7 +805,6 @@ async function docs_update({ id, title, body, status, body_format }) {
   const currentVersion = Number(existing.page._version || 1);
 
   const nextSpecStatus = status !== undefined ? normalizeSpecStatus(status) : normalizeSpecStatus(existing.page.status);
-  const confluenceStatus = nextSpecStatus === 'DRAFT' ? 'draft' : 'current';
   const rawBody = body !== undefined ? coerceStorageSourceBody(body) : null;
   const htmlBody = body !== undefined
     ? (String(body_format || '') === 'storage'
@@ -758,7 +816,7 @@ async function docs_update({ id, title, body, status, body_format }) {
     id: String(id),
     type: 'page',
     title: title !== undefined ? String(title) : existing.page.title,
-    status: confluenceStatus,
+    status: 'current',
     version: { number: currentVersion + 1 },
     body: {
       storage: {

@@ -413,6 +413,58 @@ test('agency mcp: plan.publish accepts explicit spec_id before Jira spec comment
   }
 });
 
+test('agency mcp: plan.publish accepts stringified JSON plan payloads (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), { version: '1.0', tracker: { mode: 'atlassian' }, docs: { provider: 'repo', repo: { dir: 'docs/agency' } } });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-12B', key: 'ABC-12B', title: 'Plan MCP string payload', labels: [], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const created = await client.request('tools/call', {
+      name: 'docs.create',
+      arguments: { title: 'Spec: ABC-12B', body: 'Spec Status: DRAFT\n\nSummary', status: 'DRAFT' }
+    });
+    const createdPayload = toolPayload(created);
+    const specId = createdPayload.page.id;
+
+    const plan = JSON.stringify({
+      version: '1.0',
+      ticket: { id: 'ABC-12B', key: 'ABC-12B', title: 'Plan MCP string payload', url: null },
+      acceptanceCriteria: ['AC-1'],
+      filesToTouch: ['src/app.js'],
+      steps: [{ id: '1', description: 'Implement', acRefs: ['AC-1'] }]
+    });
+
+    const pub = await client.request('tools/call', {
+      name: 'plan.publish',
+      arguments: { id: 'ABC-12B', spec_id: specId, plan }
+    });
+    const pubPayload = toolPayload(pub);
+    assert.equal(pubPayload.published, true);
+    assert.equal(pubPayload.spec.id, specId);
+    assert.deepEqual(pubPayload.plan.filesToTouch, ['src/app.js']);
+  } finally {
+    proc.kill();
+  }
+});
+
 test('agency mcp: plan.publish rejects ticket mismatch (fake)', async () => {
   const hostRoot = mkTempHost();
   writeJson(path.join(hostRoot, '.agency-project.json'), { version: '1.0', tracker: { mode: 'atlassian' } });
@@ -944,6 +996,58 @@ test('agency mcp: workflow.apply accepts labels as alias for set_labels (fake)',
   }
 });
 
+test('agency mcp: workflow.apply accepts label as alias for set_labels (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), { version: '1.0', tracker: { mode: 'atlassian' } });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        {
+          id: 'ABC-201',
+          key: 'ABC-201',
+          title: 'Workflow label singular alias test',
+          labels: ['ai-state:approved'],
+          comments: []
+        }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+    const res = await client.request('tools/call', {
+      name: 'workflow.apply',
+      arguments: {
+        id: 'ABC-201',
+        strict: false,
+        actions: [
+          { type: 'label', remove: ['ai-state:approved'], add: ['ai-state:in-qa'] },
+          { type: 'comment', body: 'Implementation Complete: moved to QA.' }
+        ]
+      }
+    });
+    const payload = toolPayload(res);
+    assert.equal(payload.ok, true);
+
+    const item = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-201' } });
+    const itemPayload = toolPayload(item);
+    assert.ok(itemPayload.item.labels.includes('ai-state:in-qa'));
+    assert.ok(!itemPayload.item.labels.includes('ai-state:approved'));
+  } finally {
+    proc.kill();
+  }
+});
+
 test('agency mcp: workflow.apply skips duplicate final comments across retries (fake)', async () => {
   const hostRoot = mkTempHost();
   writeJson(path.join(hostRoot, '.agency-project.json'), {
@@ -1011,6 +1115,49 @@ test('agency mcp: workflow.apply skips duplicate final comments across retries (
     const itemPayload = toolPayload(item);
     assert.equal(itemPayload.item.comments.length, 1);
     assert.equal(itemPayload.item.comments[0], 'Implementation Complete:\nFiles changed: src/app.js');
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: tracker.comment rejects governed workflow finalization comments (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), { version: '1.0', tracker: { mode: 'atlassian' } });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        {
+          id: 'ABC-205',
+          key: 'ABC-205',
+          title: 'Governed comment rejection test',
+          labels: ['ai-state:ready-for-plan'],
+          comments: []
+        }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+    const res = await client.request('tools/call', {
+      name: 'tracker.comment',
+      arguments: {
+        id: 'ABC-205',
+        body: 'Planning summary: test\nSpec: 123 https://example.test/spec\nThe execution plan is stored in the linked Spec.'
+      }
+    });
+    assert.ok(res.error, 'Expected governed finalization comment to be rejected');
+    assert.match(String(res.error.message || ''), /workflow\.apply/);
   } finally {
     proc.kill();
   }

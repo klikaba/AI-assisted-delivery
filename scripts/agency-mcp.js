@@ -204,7 +204,12 @@ function toolList() {
         properties: {
           id: { type: 'string' },
           spec_id: { type: 'string' },
-          plan: { type: 'object', additionalProperties: true }
+          plan: {
+            oneOf: [
+              { type: 'object', additionalProperties: true },
+              { type: 'string' }
+            ]
+          }
         }
       }
     },
@@ -563,6 +568,19 @@ function computeCapabilities({ mode, config }) {
   };
 }
 
+function isGovernedWorkflowComment(body) {
+  const text = String(body || '');
+  return (
+    /(^|\n)\s*Planning summary:/i.test(text)
+    || /(^|\n)\s*Implementation Complete:/i.test(text)
+    || /(^|\n)\s*QA:\s*(PASS|FAIL)\b/i.test(text)
+    || /(^|\n)\s*Review:\s*(PASS|FAIL)\b/i.test(text)
+    || /(^|\n)\s*Security:\s*(PASS|FAIL)\b/i.test(text)
+    || /(^|\n)\s*Governance Sync:/i.test(text)
+    || /(^|\n)\s*Release:\s*COMPLETE\b/i.test(text)
+  );
+}
+
 async function callTool(name, args) {
   const { config } = loadResolvedConfig();
   const mode = config?.tracker?.mode || 'standalone';
@@ -618,7 +636,14 @@ async function callTool(name, args) {
     const ticketId = args?.id ? String(args.id) : '';
     if (!ticketId) throw new Error('plan.publish requires id');
     const dryRun = args?.dry_run !== undefined ? Boolean(args.dry_run) : false;
-    const plan = args?.plan;
+    let plan = args?.plan;
+    if (typeof plan === 'string') {
+      try {
+        plan = JSON.parse(plan);
+      } catch (err) {
+        throw new Error(`plan.publish invalid plan JSON: ${err && err.message ? err.message : String(err)}`);
+      }
+    }
     const validation = validatePlan(plan);
     if (!validation.ok) throw new Error(`plan.publish invalid plan: ${validation.errors.join('; ')}`);
     if (String(plan?.ticket?.id || '') !== ticketId) {
@@ -897,7 +922,7 @@ async function callTool(name, args) {
     if (actions.length === 0) throw new Error('workflow.apply requires non-empty actions');
     const normalizeActionType = (value) => {
       const raw = String(value || '');
-      return raw === 'labels' ? 'set_labels' : raw;
+      return raw === 'labels' || raw === 'label' ? 'set_labels' : raw;
     };
     const commentActions = actions.filter((a) => a && typeof a === 'object' && normalizeActionType(a.type) === 'comment');
     if (strict && commentActions.length > 1) {
@@ -1230,6 +1255,9 @@ async function callTool(name, args) {
   }
 
   if (name.startsWith('tracker.')) {
+    if (name === 'tracker.comment' && isGovernedWorkflowComment(args?.body)) {
+      throw new Error('tracker.comment: governed workflow finalization comments must use workflow.apply');
+    }
     const backendId = selectBackend('tracker', mode, config);
     const backend = loadBackend('tracker', backendId);
     const fn = backend.tracker[name.slice('tracker.'.length)];

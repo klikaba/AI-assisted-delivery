@@ -52,6 +52,33 @@ Execution plans are first-class artifacts via:
 - `plan.get`
 - `plan.publish`
 
+Execution plan contract:
+
+```json
+{
+  "version": "1.0",
+  "ticket": {
+    "id": "SCRUM-7",
+    "key": "SCRUM-7",
+    "title": "Ticket title",
+    "url": null
+  },
+  "acceptanceCriteria": ["AC-1"],
+  "filesToTouch": ["path/to/file"],
+  "steps": [
+    {
+      "id": "1",
+      "description": "Implement the required change.",
+      "acRefs": ["AC-1"]
+    }
+  ]
+}
+```
+
+- `plan.version` must be exactly `"1.0"`.
+- `plan.ticket` must be an object, not a string.
+- `plan.steps` must be an array of objects with `id`, `description`, and `acRefs`.
+
 Current model:
 
 - the implementation spec is the primary planning artifact
@@ -170,4 +197,3 @@ For deeper implementation rationale:
 - [Product Overview](PRODUCT_OVERVIEW.md)
 - [Agency MCP Architecture](architecture/agency-mcp-architecture.md)
 - [Agency Hardening Checklist](architecture/agency-hardening-checklist.md)
-
