@@ -87,6 +87,7 @@ Domains/actions:
   tracker search   --label <label> [--label <label> ...] [--text <text>] [--limit <n>] [--jql <jql>] [--json]
   tracker get      --id <id> [--json]
   tracker comment  --id <id> --body <text> [--json]
+  tracker update   --id <id> [--title <title>] [--body <text>] [--json]
   tracker transition --id <id> --status <status> [--json]
   tracker set-labels --id <id> [--add <label> ...] [--remove <label> ...] [--json]
 
@@ -148,6 +149,13 @@ async function main() {
         if (!flags.id) die('tracker comment requires --id');
         if (flags.body === undefined) die('tracker comment requires --body');
         const res = await backend.tracker.comment({ id: flags.id, body: flags.body });
+        jsonOut(res, args.json);
+        return;
+      }
+      if (action === 'update') {
+        if (!flags.id) die('tracker update requires --id');
+        if (flags.title === undefined && flags.body === undefined) die('tracker update requires --title and/or --body');
+        const res = await backend.tracker.update({ id: flags.id, title: flags.title, body: flags.body });
         jsonOut(res, args.json);
         return;
       }

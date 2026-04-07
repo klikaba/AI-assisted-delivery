@@ -119,6 +119,20 @@ function toolList() {
       }
     },
     {
+      name: 'tracker.update',
+      description: 'Update tracker fields such as title and description/body.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id'],
+        properties: {
+          id: { type: 'string' },
+          title: { type: 'string' },
+          body: { type: 'string' }
+        }
+      }
+    },
+    {
       name: 'tracker.transition',
       description: 'Transition a tracker item to a status (best-effort depending on backend).',
       inputSchema: {
@@ -457,6 +471,7 @@ function computeCapabilities({ mode, config }) {
       search: hasFn(trackerBackend.tracker, 'search'),
       get: hasFn(trackerBackend.tracker, 'get'),
       comment: hasFn(trackerBackend.tracker, 'comment'),
+      update: hasFn(trackerBackend.tracker, 'update'),
       transition: hasFn(trackerBackend.tracker, 'transition'),
       set_labels: hasFn(trackerBackend.tracker, 'set_labels')
     },

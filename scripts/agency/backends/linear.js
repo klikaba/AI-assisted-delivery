@@ -234,6 +234,29 @@ async function tracker_comment({ id, body }) {
   return { ok: true };
 }
 
+async function tracker_update({ id, title, body }) {
+  if (title === undefined && body === undefined) {
+    throw new Error('tracker.update requires title and/or body');
+  }
+  const issue = await issueByIdOrIdentifier(id);
+  const input = {};
+  if (title !== undefined) input.title = String(title);
+  if (body !== undefined) input.description = String(body);
+
+  await linearFetch({
+    query: `
+      mutation UpdateIssueFields($id: String!, $input: IssueUpdateInput!) {
+        issueUpdate(id: $id, input: $input) {
+          success
+        }
+      }
+    `,
+    variables: { id: String(issue.id), input }
+  });
+
+  return tracker_get({ id });
+}
+
 const labelIdCache = new Map(); // name -> id
 
 async function resolveLabelIdByName(name) {
@@ -326,6 +349,7 @@ module.exports = {
     search: tracker_search,
     get: tracker_get,
     comment: tracker_comment,
+    update: tracker_update,
     transition: tracker_transition,
     set_labels: tracker_set_labels
   },

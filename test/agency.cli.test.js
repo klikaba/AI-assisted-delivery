@@ -83,3 +83,31 @@ test('agency cli: awaits async tracker search backends', () => {
   assert.equal(payload.items.length, 1);
   assert.equal(payload.items[0].key, 'ABC-1');
 });
+
+test('agency cli: tracker update modifies title and body on fake backend', () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' }
+  });
+  writeJson(path.join(hostRoot, '.agency-fixtures', 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-2', key: 'ABC-2', title: 'Old title', body: 'Old body', labels: [], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const res = runAgency(
+    ['tracker', 'update', '--id', 'ABC-2', '--title', 'New title', '--body', 'New body', '--json'],
+    hostRoot,
+    { AGENCY_INTEGRATION_BACKEND: 'fake' }
+  );
+  assert.equal(res.status, 0, res.stderr || res.stdout);
+
+  const payload = JSON.parse(res.stdout);
+  assert.equal(payload.item.title, 'New title');
+  assert.equal(payload.item.body, 'New body');
+});

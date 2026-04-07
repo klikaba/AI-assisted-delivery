@@ -8,7 +8,7 @@ test('capabilities schema: accepts valid payload', () => {
     version: '1.0',
     mode: 'atlassian',
     backends: { tracker: 'fake', docs: 'repo', scm: 'none', tms: 'none' },
-    tracker: { search: true, get: true, comment: true, transition: true, set_labels: true },
+    tracker: { search: true, get: true, comment: true, update: true, transition: true, set_labels: true },
     docs: { create: true, get: true, update: true },
     workflow: { summary: true, queue: true, gate_status: true, apply: true, sync_plan_review: true },
     tms: { enabled: false, suite_ensure: false, case_create: false },

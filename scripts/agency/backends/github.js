@@ -78,6 +78,17 @@ function tracker_comment({ id, body }) {
   return { ok: true };
 }
 
+function tracker_update({ id, title, body }) {
+  if (title === undefined && body === undefined) {
+    throw new Error('tracker.update requires title and/or body');
+  }
+  const args = ['issue', 'edit', String(id)];
+  if (title !== undefined) args.push('--title', String(title));
+  if (body !== undefined) args.push('--body', String(body));
+  runGh(args);
+  return tracker_get({ id });
+}
+
 function tracker_transition({ id, status }) {
   // GitHub Issues don't have workflow statuses like Jira; we treat status as a no-op.
   // Clients can implement status via labels/projects; keep the capability stable.
@@ -98,6 +109,7 @@ module.exports = {
     search: tracker_search,
     get: tracker_get,
     comment: tracker_comment,
+    update: tracker_update,
     transition: tracker_transition,
     set_labels: tracker_set_labels
   },

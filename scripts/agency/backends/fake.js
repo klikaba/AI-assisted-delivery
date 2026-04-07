@@ -120,6 +120,16 @@ function tracker_comment({ id, body }) {
   return { ok: true };
 }
 
+function tracker_update({ id, title, body }) {
+  const state = loadState();
+  const item = findItem(state, id);
+  if (!item) throw new Error(`Item not found: ${id}`);
+  if (title !== undefined) item.title = String(title);
+  if (body !== undefined) item.body = String(body);
+  saveState(state);
+  return { ok: true, item: normalizeItem(item) };
+}
+
 function tracker_transition({ id, status }) {
   const state = loadState();
   const item = findItem(state, id);
@@ -272,6 +282,7 @@ module.exports = {
     search: tracker_search,
     get: tracker_get,
     comment: tracker_comment,
+    update: tracker_update,
     transition: tracker_transition,
     set_labels: tracker_set_labels
   },

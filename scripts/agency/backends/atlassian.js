@@ -348,6 +348,25 @@ async function tracker_comment({ id, body }) {
   return { ok: true };
 }
 
+async function tracker_update({ id, title, body }) {
+  const { jiraBase } = getAtlassianBases();
+  if (title === undefined && body === undefined) {
+    throw new Error('tracker.update requires title and/or body');
+  }
+
+  const fields = {};
+  if (title !== undefined) fields.summary = String(title);
+  if (body !== undefined) fields.description = toAdfTextDoc(String(body));
+
+  const url = `${jiraBase}/rest/api/3/issue/${encodeURIComponent(String(id))}`;
+  await atlassianFetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields })
+  });
+  return tracker_get({ id });
+}
+
 async function tracker_set_labels({ id, add, remove }) {
   const { jiraBase } = getAtlassianBases();
   const current = await tracker_get({ id });
@@ -505,6 +524,7 @@ module.exports = {
     search: tracker_search,
     get: tracker_get,
     comment: tracker_comment,
+    update: tracker_update,
     transition: tracker_transition,
     set_labels: tracker_set_labels
   },

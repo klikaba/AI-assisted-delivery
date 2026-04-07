@@ -56,6 +56,8 @@ test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
     assert.ok(tools.find((t) => t.name === 'agency.tracker.search'));
     assert.ok(tools.find((t) => t.name === 'docs.create'));
     assert.ok(tools.find((t) => t.name === 'agency.docs.create'));
+    assert.ok(tools.find((t) => t.name === 'tracker.update'));
+    assert.ok(tools.find((t) => t.name === 'agency.tracker.update'));
     assert.ok(tools.find((t) => t.name === 'scm.pr_create'));
     assert.ok(tools.find((t) => t.name === 'agency.scm.pr_create'));
     assert.ok(tools.find((t) => t.name === 'workflow.summary'));
@@ -80,6 +82,7 @@ test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
     assert.equal(capsPayload.backends.tracker, 'fake');
     assert.equal(capsPayload.backends.docs, 'fake');
     assert.equal(capsPayload.backends.scm, 'fake');
+    assert.equal(capsPayload.tracker.update, true);
 
     const call = await client.request('tools/call', {
       name: 'tracker.search',
@@ -233,6 +236,41 @@ test('agency mcp: workflow.summary returns strict gate checklist (fake)', async 
     // With only approved label present (no verified/reviewed), QA and review should be missing.
     assert.ok(sumPayload.missing.includes('qa verification'));
     assert.ok(sumPayload.missing.includes('code review'));
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: tracker.update modifies canonical tracker fields (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), { version: '1.0', tracker: { mode: 'atlassian' } });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-11', key: 'ABC-11', title: 'Old title', body: 'Old body', labels: [], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+    const res = await client.request('tools/call', {
+      name: 'tracker.update',
+      arguments: { id: 'ABC-11', title: 'Refined title', body: 'Refined body' }
+    });
+    const payload = toolPayload(res);
+    assert.equal(payload.item.title, 'Refined title');
+    assert.equal(payload.item.body, 'Refined body');
   } finally {
     proc.kill();
   }

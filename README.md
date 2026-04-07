@@ -393,7 +393,7 @@ Output includes:
 
 This platform exposes a stable, vendor-agnostic tool surface to agents via a local MCP server:
 
-- **Tracker tools:** `tracker.search`, `tracker.get`, `tracker.comment`, `tracker.transition`, `tracker.set_labels`
+- **Tracker tools:** `tracker.search`, `tracker.get`, `tracker.comment`, `tracker.update`, `tracker.transition`, `tracker.set_labels`
 - **Docs tools:** `docs.create`, `docs.get`, `docs.update`
 - **SCM tools:** `scm.pr_create`, `scm.pr_get`, `scm.pr_comment`, `scm.pr_set_labels`, `scm.pr_link_ticket`
 - **Workflow tools:** `workflow.queue`, `workflow.gate_status`, `workflow.summary`, `workflow.apply`, `workflow.sync_plan_review`, `workflow.qa_decide`, `workflow.review_decide`, `workflow.security_decide`, `workflow.release`
@@ -442,6 +442,9 @@ Team-friendly commands for day-to-day operations:
 
 # Show ticket summary with gate status (live)
 ./.agency/bin/agency open --id JIRA-123
+
+# Update a ticket title/body (live)
+./.agency/bin/agency tracker update --id JIRA-123 --title "Refined title" --body "Refined description"
 
 # Approve a spec (docs provider)
 ./.agency/bin/agency spec approve --id <specId>
