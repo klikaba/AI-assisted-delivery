@@ -4,7 +4,7 @@
 
 `.agency` is a governed SDLC workflow layer for AI agents.
 
-It lets teams run Product, Planning, Dev, QA, Review, Security, and Release work through a stable workflow contract instead of relying on prompt-by-prompt improvisation.
+It lets teams run Product, Planning, Dev, QA, Review, optional Security, and PM release work through a stable workflow contract instead of relying on prompt-by-prompt improvisation.
 
 ## Purpose
 
@@ -40,7 +40,7 @@ Common failure modes:
 
 ## What It Gives A Team
 
-- stable role prompts for Product, Planning, Developer, QA, Review, Security, and PM
+- stable role prompts for Product, Planning, Developer, QA, Review, optional Security, and PM
 - a provider-agnostic tool contract over Jira, Confluence, GitHub, Linear, and optional TMS systems
 - a portable workflow state machine based on `ai-state:*` labels
 - human approval gates, especially spec approval
