@@ -396,7 +396,7 @@ This platform exposes a stable, vendor-agnostic tool surface to agents via a loc
 - **Tracker tools:** `tracker.search`, `tracker.get`, `tracker.comment`, `tracker.transition`, `tracker.set_labels`
 - **Docs tools:** `docs.create`, `docs.get`, `docs.update`
 - **SCM tools:** `scm.pr_create`, `scm.pr_get`, `scm.pr_comment`, `scm.pr_set_labels`, `scm.pr_link_ticket`
-- **Workflow tools:** `workflow.queue`, `workflow.gate_status`, `workflow.summary`, `workflow.apply`, `workflow.sync_plan_review`
+- **Workflow tools:** `workflow.queue`, `workflow.gate_status`, `workflow.summary`, `workflow.apply`, `workflow.sync_plan_review`, `workflow.qa_decide`, `workflow.review_decide`, `workflow.security_decide`, `workflow.release`
 - **TMS tools:** `tms.suite_ensure`, `tms.case_create`
 - **Capabilities:** `capabilities.get`
 
@@ -566,7 +566,11 @@ If you don’t want the full SDLC menu in the OpenCode TUI, you can generate foc
 4. Run **PM (Governance Sync)** to sync `Spec Status` back to ticket labels:
    - `APPROVED` -> `ai-state:approved`
    - `CHANGES REQUESTED` -> `ai-state:ready-for-plan`
-5. Run **Developer Agent**, then **QA**, then **Review/Security**, then **PM Release**.
+5. Run **Developer Agent**, then **QA**, then **Review/Security**, then **PM Release**:
+   - QA pass/fail is applied via `workflow.qa_decide`
+   - Review pass/fail is applied via `workflow.review_decide`
+   - Security pass/fail is applied via `workflow.security_decide`
+   - Release closure is applied via `workflow.release`
 
 ## Migration From <= 0.3.x
 
@@ -585,7 +589,7 @@ If you enable a test management system (`tms.provider`, default: `none`), the QA
 
 - QA must first create/save test cases in the TMS (default adapter: TestRail).
 - QA must comment on the ticket with a machine-parseable marker: `TestCases: ...`
-- Only then can QA mark verification (`ai-state:verified`) using `QA: PASS` + `workflow.apply` (which enforces the evidence marker when TMS is enabled).
+- Only then can QA mark verification (`ai-state:verified`) using `workflow.qa_decide` (which enforces the `QA: PASS` and `TestCases: ...` evidence requirements when TMS is enabled).
 
 ## Environment
 
