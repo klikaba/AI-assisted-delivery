@@ -299,6 +299,55 @@ test('agency mcp: workflow.queue returns summaries for matching tickets (fake)',
   }
 });
 
+test('agency mcp: workflow.gate_status reports PR as n/a when scm is disabled', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' },
+    docs: { provider: 'repo', repo: { dir: 'docs/agency' } },
+    scm: { provider: 'none' }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        {
+          id: 'ABC-20',
+          key: 'ABC-20',
+          title: 'SCM disabled workflow test',
+          labels: ['ai-state:in-qa'],
+          comments: ['Spec: doc-20 docs/agency/doc-20.md']
+        }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const docsDir = path.join(hostRoot, 'docs', 'agency');
+  writeJson(path.join(docsDir, 'doc-20.json'), { id: 'doc-20', title: 'Spec: ABC-20', status: 'APPROVED' });
+  fs.mkdirSync(docsDir, { recursive: true });
+  fs.writeFileSync(path.join(docsDir, 'doc-20.md'), 'Spec Status: APPROVED\n', 'utf8');
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake', AGENCY_DOCS_BACKEND: 'fake', AGENCY_SCM_BACKEND: 'none' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const res = await client.request('tools/call', { name: 'workflow.gate_status', arguments: { id: 'ABC-20' } });
+    const payload = toolPayload(res);
+    assert.equal(payload.lines[1], 'PR: n/a');
+    assert.equal(payload.summary.evidence.pr.required, false);
+  } finally {
+    proc.kill();
+  }
+});
+
 test('agency mcp: workflow.gate_status renders 5-line block (fake)', async () => {
   const hostRoot = mkTempHost();
   writeJson(path.join(hostRoot, '.agency-project.json'), {
@@ -485,6 +534,64 @@ test('agency mcp: workflow.sync_plan_review can dry-run and apply (fake)', async
     const a2 = toolPayload(after2).item.labels;
     assert.ok(a2.includes('ai-state:ready-for-plan'));
     assert.ok(!a2.includes('ai-state:plan-review'));
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.release can dry-run and apply (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' },
+    docs: { provider: 'repo', repo: { dir: 'docs/agency' } },
+    workflow: { gates: { security_audit: true } }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        {
+          id: 'ABC-401',
+          key: 'ABC-401',
+          title: 'Release candidate',
+          labels: ['ai-state:verified', 'ai-state:reviewed', 'ai-state:security-pass'],
+          comments: []
+        }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake', AGENCY_DOCS_BACKEND: 'fake', AGENCY_SCM_BACKEND: 'none' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const dry = await client.request('tools/call', { name: 'workflow.release', arguments: { id: 'ABC-401', dry_run: true } });
+    const dryPayload = toolPayload(dry);
+    assert.equal(dryPayload.ticket.key, 'ABC-401');
+    assert.equal(dryPayload.release_notes.title, 'Release Notes: ABC-401');
+    assert.equal(Array.isArray(dryPayload.actions), true);
+
+    const apply = await client.request('tools/call', { name: 'workflow.release', arguments: { id: 'ABC-401', dry_run: false } });
+    const applyPayload = toolPayload(apply);
+    assert.equal(applyPayload.dry_run, false);
+
+    const item = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-401' } });
+    const itemPayload = toolPayload(item);
+    assert.equal(itemPayload.item.status, 'Done');
+    assert.deepEqual(itemPayload.item.labels, []);
+
+    const state = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'state.json'), 'utf8'));
+    assert.equal(state.docs.pages.length, 1);
+    assert.equal(state.docs.pages[0].title, 'Release Notes: ABC-401');
   } finally {
     proc.kill();
   }

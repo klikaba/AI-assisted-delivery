@@ -26,6 +26,7 @@ const {
   parseGitHubPrNumberFromUrl,
   parseQaMarker,
   parseReviewMarker,
+  parseSecurityMarker,
   parseTestCasesRefFromComments,
   normalizeStatus,
   safeLabelIncludes,
@@ -344,6 +345,19 @@ function toolList() {
           dry_run: { type: 'boolean' }
         }
       }
+    },
+    {
+      name: 'workflow.release',
+      description: 'PM automation: verify release gates, create release notes, close the ticket, and clear workflow labels. Supports dry-run.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id'],
+        properties: {
+          id: { type: 'string' },
+          dry_run: { type: 'boolean' }
+        }
+      }
     }
   ];
 
@@ -415,7 +429,8 @@ function computeCapabilities({ mode, config }) {
       queue: true,
       gate_status: true,
       apply: true,
-      sync_plan_review: true
+      sync_plan_review: true,
+      release: true
     },
     scm: {
       enabled: scmBackendId !== 'none',
@@ -441,7 +456,9 @@ async function callTool(name, args) {
       ? 'missing'
       : (s?.evidence?.spec?.status ? String(s.evidence.spec.status).toUpperCase() : 'UNKNOWN');
 
+    const prRequired = s?.evidence?.pr?.required !== false;
     const prLinked = Boolean(s?.evidence?.pr?.linked);
+    const prLine = prRequired ? (prLinked ? 'linked' : 'missing') : 'n/a';
 
     const qaMarker = s?.evidence?.qa?.marker ? String(s.evidence.qa.marker).toUpperCase() : null;
     const qaPassed = Boolean(s?.evidence?.qa?.passed);
@@ -455,7 +472,7 @@ async function callTool(name, args) {
 
     return [
       `Spec: ${specStatus}`,
-      `PR: ${prLinked ? 'linked' : 'missing'}`,
+      `PR: ${prLine}`,
       `QA: ${qaLine}`,
       `Review: ${reviewLine}`,
       `Next: ${next}`
@@ -480,6 +497,7 @@ async function callTool(name, args) {
     const trackerBackendId = selectBackend('tracker', mode, config);
     const docsBackendId = selectBackend('docs', mode, config);
     const scmBackendId = selectBackend('scm', mode, config);
+    const scmEnabled = scmBackendId !== 'none';
 
     const trackerBackend = loadBackend('tracker', trackerBackendId);
     const docsBackend = loadBackend('docs', docsBackendId);
@@ -493,6 +511,7 @@ async function callTool(name, args) {
     const prRef = parsePrRefFromComments(comments);
     const qaMarker = parseQaMarker(comments);
     const reviewMarker = parseReviewMarker(comments);
+    const securityMarker = parseSecurityMarker(comments);
     const testCasesRef = parseTestCasesRefFromComments(comments);
 
     let spec = null;
@@ -557,15 +576,15 @@ async function callTool(name, args) {
     const specApproved = !gateSpec || normalizeStatus(spec?.status) === 'APPROVED';
     const reviewPassed = !gateReview || safeLabelIncludes(labels, labelReviewed);
     const qaPassed = !gateQa || safeLabelIncludes(labels, labelVerified);
-    const securityPassed = !gateSecurity || safeLabelIncludes(labels, labelSecurityPass);
+    const securityPassed = !gateSecurity || safeLabelIncludes(labels, labelSecurityPass) || securityMarker === 'PASS';
 
     const evidence = {
       spec: spec ? { ...spec, approved: specApproved } : { approved: !gateSpec, missing: gateSpec },
-      pr: pr ? { ...pr, linked: true } : { linked: false },
+      pr: pr ? { ...pr, linked: true, required: scmEnabled } : { linked: false, required: scmEnabled },
       tms: { required: requiresTmsCases, enabled: tmsProvider !== 'none', backend: tmsBackendId, ref: testCasesRef },
       qa: { required: gateQa, passed: qaPassed, label: labelVerified, marker: qaMarker },
       review: { required: gateReview, passed: reviewPassed, label: labelReviewed, marker: reviewMarker },
-      security: { required: gateSecurity, passed: securityPassed, label: labelSecurityPass }
+      security: { required: gateSecurity, passed: securityPassed, label: labelSecurityPass, marker: securityMarker }
     };
 
     const missing = [];
@@ -581,9 +600,10 @@ async function callTool(name, args) {
     else if (requiresTmsCases && isInQa && !testCasesRef) next = 'Create test cases in the test repository (e.g. TestRail) and comment `TestCases: ...`, then implement automation and rerun QA.';
     else if (!safeLabelIncludes(labels, labelApproved) && !safeLabelIncludes(labels, labelInQa) && !safeLabelIncludes(labels, labelVerified) && !safeLabelIncludes(labels, labelReviewed)) {
       next = `Apply label ${labelApproved} (or run PM Governance Sync), then run Developer Agent.`;
-    } else if (!pr) next = 'Run Developer Agent to implement and create/link a PR.';
+    } else if (scmEnabled && !pr) next = 'Run Developer Agent to implement and create/link a PR.';
     else if (safeLabelIncludes(labels, labelInQa) && gateQa && !qaPassed) next = 'Run QA Engineer Agent to verify.';
     else if (safeLabelIncludes(labels, labelVerified) && gateReview && !reviewPassed) next = 'Run Code Reviewer Agent to review.';
+    else if (safeLabelIncludes(labels, labelVerified) && reviewPassed && securityPassed) next = 'Run Project Manager Agent to release.';
     else if (safeLabelIncludes(labels, labelReadyForPlan)) next = 'Run Planning Agent.';
     else if (safeLabelIncludes(labels, labelPlanReview)) next = 'Approve Spec (Spec Status: APPROVED), then run PM Governance Sync.';
 
@@ -787,6 +807,72 @@ async function callTool(name, args) {
     }
 
     return { version: '1.0', dry_run: dryRun, items: decisions };
+  }
+
+  if (name === 'workflow.release') {
+    const id = args?.id ? String(args.id) : '';
+    if (!id) throw new Error('workflow.release requires id');
+    const dryRun = args?.dry_run !== undefined ? Boolean(args.dry_run) : true;
+
+    const trackerBackendId = selectBackend('tracker', mode, config);
+    const docsBackendId = selectBackend('docs', mode, config);
+    const trackerBackend = loadBackend('tracker', trackerBackendId);
+    const docsBackend = loadBackend('docs', docsBackendId);
+
+    const summary = await computeSummaryForTicket(id);
+    const labelVerified = workflowLabel(config, 'verified', 'ai-state:verified');
+    const labelReviewed = workflowLabel(config, 'reviewed', 'ai-state:reviewed');
+    const labelSecurityPass = workflowLabel(config, 'security_pass', 'ai-state:security-pass');
+    const gateSecurity = workflowGate(config, 'security_audit', false);
+    const labels = Array.isArray(summary?.ticket?.labels) ? summary.ticket.labels : [];
+
+    const missing = [];
+    if (!safeLabelIncludes(labels, labelVerified)) missing.push(labelVerified);
+    if (!safeLabelIncludes(labels, labelReviewed)) missing.push(labelReviewed);
+    if (gateSecurity && !safeLabelIncludes(labels, labelSecurityPass)) missing.push(labelSecurityPass);
+    if (missing.length > 0) {
+      throw new Error(`workflow.release blocked: missing required labels: ${missing.join(', ')}`);
+    }
+
+    const workflowLabels = Array.from(
+      new Set(
+        Object.values(config?.workflow?.labels || {})
+          .filter((v) => typeof v === 'string' && v.trim())
+          .map((v) => String(v).trim())
+      )
+    );
+
+    const releaseTitle = `Release Notes: ${summary.ticket.key || summary.ticket.id}`;
+    const releaseBody = [
+      `Release Notes for ${summary.ticket.key || summary.ticket.id}`,
+      '',
+      summary.ticket.title || '',
+      '',
+      `Released by Agency workflow on ${new Date().toISOString()}`
+    ].join('\n');
+
+    const actions = [
+      { type: 'transition', status: 'Done' },
+      { type: 'set_labels', remove: workflowLabels, add: [] },
+      { type: 'comment', body: `Release: COMPLETE\nRelease notes created. Ticket moved to Done and workflow labels cleared.` }
+    ];
+
+    if (!dryRun) {
+      await docsBackend.docs.create({
+        title: releaseTitle,
+        body: releaseBody,
+        status: 'DRAFT'
+      });
+      await callTool('workflow.apply', { id, strict: false, actions });
+    }
+
+    return {
+      version: '1.0',
+      dry_run: dryRun,
+      ticket: summary.ticket,
+      release_notes: { title: releaseTitle, status: 'DRAFT' },
+      actions
+    };
   }
 
   if (name.startsWith('tracker.')) {

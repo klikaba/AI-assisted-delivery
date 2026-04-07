@@ -149,3 +149,22 @@ test('config: can generate focused OpenCode presets', () => {
   const doc = fs.readFileSync(docPath, 'utf8');
   assert.ok(doc.includes('opencode --config opencode.planning.jsonc'), 'Expected planning command in presets doc');
 });
+
+test('config: reviewer keeps bash access for git-based review', () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' },
+    docs: { provider: 'atlassian' },
+    scm: { provider: 'none' }
+  });
+
+  const gen = runConfig(['--generate'], hostRoot);
+  assert.equal(gen.status, 0, gen.stderr || gen.stdout);
+
+  const outPath = path.join(hostRoot, 'opencode.jsonc');
+  const opencodeConfig = readOpencodeJsonc(outPath);
+  const reviewer = opencodeConfig.agent['Code Reviewer Agent'];
+  assert.equal(reviewer.tools?.edit, false);
+  assert.equal(reviewer.tools?.bash, true);
+});

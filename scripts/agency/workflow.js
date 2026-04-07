@@ -49,6 +49,10 @@ function parseReviewMarker(comments) {
   return parseMarkerFromComments(comments, 'Review');
 }
 
+function parseSecurityMarker(comments) {
+  return parseMarkerFromComments(comments, 'Security');
+}
+
 function parseTestCasesRefFromComments(comments) {
   const list = Array.isArray(comments) ? comments.map(String) : [];
   for (let i = list.length - 1; i >= 0; i -= 1) {
@@ -88,6 +92,7 @@ module.exports = {
   parseGitHubPrNumberFromUrl,
   parseQaMarker,
   parseReviewMarker,
+  parseSecurityMarker,
   parseTestCasesRefFromComments,
   normalizeStatus,
   safeLabelIncludes,

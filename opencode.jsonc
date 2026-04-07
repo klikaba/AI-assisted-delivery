@@ -63,7 +63,7 @@
       "prompt": "{file:./prompts/review.md}",
       "tools": {
         "edit": false,
-        "bash": false
+        "bash": true
       }
     },
     "Security Engineer Agent": {

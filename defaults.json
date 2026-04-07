@@ -43,7 +43,7 @@
     "planning": { "enabled": true },
     "architecture": { "enabled": true },
     "developer": { "enabled": true },
-    "reviewer": { "enabled": true, "tools": { "edit": false, "bash": false } },
+    "reviewer": { "enabled": true, "tools": { "edit": false, "bash": true } },
     "security": { "enabled": true },
     "devops": { "enabled": true },
     "qa": { "enabled": true },
