@@ -73,12 +73,90 @@ function extractSpecStatusFromStorage(html) {
   return normalizeSpecStatus(m[1]);
 }
 
+function escapeCdata(text) {
+  return String(text || '').replaceAll(']]>', ']]]]><![CDATA[>');
+}
+
+function renderStorageCodeBlock(code, language) {
+  const languageParam = language ? `<ac:parameter ac:name="language">${htmlEscape(String(language))}</ac:parameter>` : '';
+  return `<ac:structured-macro ac:name="code">${languageParam}<ac:plain-text-body><![CDATA[${escapeCdata(code)}]]></ac:plain-text-body></ac:structured-macro>`;
+}
+
+function renderStorageBodyHtml(body) {
+  const raw = String(body || '').replace(/\r\n/g, '\n');
+  const lines = raw.split('\n');
+  const blocks = [];
+  let i = 0;
+
+  const isBlank = (line) => /^\s*$/.test(line);
+  const isBullet = (line) => /^\s*[-*]\s+/.test(line);
+  const isFence = (line) => /^\s*```/.test(line);
+  const headingMatch = (line) => /^(\#{1,6})\s+(.+?)\s*$/.exec(line);
+
+  while (i < lines.length) {
+    if (isBlank(lines[i])) {
+      i += 1;
+      continue;
+    }
+
+    if (isFence(lines[i])) {
+      const first = lines[i].trim();
+      const language = first.slice(3).trim() || undefined;
+      i += 1;
+      const code = [];
+      while (i < lines.length && !isFence(lines[i])) {
+        code.push(lines[i]);
+        i += 1;
+      }
+      if (i < lines.length && isFence(lines[i])) i += 1;
+      blocks.push(renderStorageCodeBlock(code.join('\n'), language));
+      continue;
+    }
+
+    const heading = headingMatch(lines[i]);
+    if (heading) {
+      const level = Math.min(6, heading[1].length);
+      blocks.push(`<h${level}>${htmlEscape(heading[2])}</h${level}>`);
+      i += 1;
+      continue;
+    }
+
+    if (isBullet(lines[i])) {
+      const items = [];
+      let current = null;
+      while (i < lines.length && !isBlank(lines[i]) && !isFence(lines[i]) && !headingMatch(lines[i])) {
+        const line = lines[i];
+        if (isBullet(line)) {
+          if (current !== null) items.push(current);
+          current = line.replace(/^\s*[-*]\s+/, '');
+        } else if (current !== null) {
+          current += `\n${line.trim()}`;
+        } else {
+          current = line.trim();
+        }
+        i += 1;
+      }
+      if (current !== null) items.push(current);
+      blocks.push(`<ul>${items.map((item) => `<li>${htmlEscape(item).replaceAll('\n', '<br />')}</li>`).join('')}</ul>`);
+      continue;
+    }
+
+    const paragraph = [];
+    while (i < lines.length && !isBlank(lines[i]) && !isFence(lines[i]) && !isBullet(lines[i]) && !headingMatch(lines[i])) {
+      paragraph.push(lines[i]);
+      i += 1;
+    }
+    blocks.push(`<p>${htmlEscape(paragraph.join('\n')).replaceAll('\n', '<br />')}</p>`);
+  }
+
+  if (blocks.length === 0) return '<p></p>';
+  return blocks.join('\n');
+}
+
 function renderStorageHtml({ body, specStatus }) {
   const status = normalizeSpecStatus(specStatus);
   const statusHtml = `<p><strong>Spec Status:</strong> ${htmlEscape(status)}</p>`;
-  const contentHtml = String(body || '').includes('\n')
-    ? `<pre>${htmlEscape(body)}</pre>`
-    : `<p>${htmlEscape(body)}</p>`;
+  const contentHtml = renderStorageBodyHtml(body);
   return `${statusHtml}\n${contentHtml}`;
 }
 
@@ -641,6 +719,9 @@ module.exports = {
   },
   __private: {
     toAdfCommentDoc,
-    adfToText
+    adfToText,
+    renderStorageHtml,
+    extractSpecStatusFromStorage,
+    escapeCdata
   }
 };
