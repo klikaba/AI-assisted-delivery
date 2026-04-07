@@ -12,6 +12,13 @@
 
 const cp = require('child_process');
 const path = require('path');
+require('./load-env').loadEnvFiles();
+
+function formatError(err) {
+  const message = err && err.message ? err.message : String(err);
+  const cause = err && err.cause && err.cause.message ? ` (${err.cause.message})` : '';
+  return `${message}${cause}`;
+}
 
 function requireEnv(name) {
   const v = process.env[name];
@@ -89,7 +96,10 @@ async function checkAtlassianApi({ config, checkJira, checkConfluence }) {
 function checkGitHubCli() {
   const res = cp.spawnSync('gh', ['auth', 'status', '--hostname', 'github.com'], { encoding: 'utf8' });
   if (res.status !== 0) {
-    throw new Error(`gh auth status failed:\n${res.stdout}\n${res.stderr}`);
+    const stdout = (res.stdout || '').trim();
+    const stderr = (res.stderr || '').trim();
+    const detail = [stdout, stderr].filter(Boolean).join('\n');
+    throw new Error(`gh auth status failed${detail ? `:\n${detail}` : ' (run "gh auth login")'}`);
   }
 }
 
@@ -222,6 +232,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  process.stderr.write(`Live checks failed: ${err && err.message ? err.message : String(err)}\n`);
+  process.stderr.write(`Live checks failed: ${formatError(err)}\n`);
   process.exit(1);
 });

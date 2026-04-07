@@ -1,0 +1,68 @@
+[
+  {
+    "deviceId": "SN-10021",
+    "bedLabel": "Primary King Left",
+    "region": "Minneapolis",
+    "firmware": "4.8.2",
+    "status": "connected",
+    "lastHeartbeatMinutes": 1,
+    "stateDurationMinutes": 180,
+    "incidentOwner": null,
+    "sleepSession": "active"
+  },
+  {
+    "deviceId": "SN-10022",
+    "bedLabel": "Primary King Right",
+    "region": "Minneapolis",
+    "firmware": "4.8.2",
+    "status": "reconnecting",
+    "lastHeartbeatMinutes": 19,
+    "stateDurationMinutes": 22,
+    "incidentOwner": "Ops Queue",
+    "sleepSession": "buffering"
+  },
+  {
+    "deviceId": "SN-10408",
+    "bedLabel": "Guest Queen",
+    "region": "Dallas",
+    "firmware": "4.8.1",
+    "status": "offline",
+    "lastHeartbeatMinutes": 64,
+    "stateDurationMinutes": 64,
+    "incidentOwner": "Ops Queue",
+    "sleepSession": "not-reporting"
+  },
+  {
+    "deviceId": "SN-10877",
+    "bedLabel": "Primary Split Right",
+    "region": "Phoenix",
+    "firmware": "4.8.2",
+    "status": "connected",
+    "lastHeartbeatMinutes": 2,
+    "stateDurationMinutes": 220,
+    "incidentOwner": null,
+    "sleepSession": "active"
+  },
+  {
+    "deviceId": "SN-10931",
+    "bedLabel": "Primary Split Left",
+    "region": "Phoenix",
+    "firmware": "4.7.9",
+    "status": "reconnecting",
+    "lastHeartbeatMinutes": 8,
+    "stateDurationMinutes": 9,
+    "incidentOwner": "Tier 2",
+    "sleepSession": "buffering"
+  },
+  {
+    "deviceId": "SN-11002",
+    "bedLabel": "Primary Queen",
+    "region": "Chicago",
+    "firmware": "4.8.0",
+    "status": "connected",
+    "lastHeartbeatMinutes": 3,
+    "stateDurationMinutes": 310,
+    "incidentOwner": null,
+    "sleepSession": "idle"
+  }
+]

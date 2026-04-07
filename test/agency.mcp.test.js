@@ -17,6 +17,16 @@ function writeJson(filePath, obj) {
   fs.writeFileSync(filePath, JSON.stringify(obj, null, 2) + '\n');
 }
 
+function toolPayload(response) {
+  const result = response?.result || {};
+  if (result.structuredContent !== undefined) return result.structuredContent;
+  const first = result.content?.[0];
+  if (!first) return undefined;
+  if (first.type === 'text') return JSON.parse(first.text);
+  if (first.type === 'json') return first.json;
+  return undefined;
+}
+
 test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
   const hostRoot = mkTempHost();
   writeJson(path.join(hostRoot, '.agency-project.json'), { version: '1.0', tracker: { mode: 'atlassian' }, scm: { provider: 'github' } });
@@ -61,10 +71,11 @@ test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
 
     const caps = await client.request('tools/call', { name: 'capabilities.get', arguments: {} });
     const capsFirst = caps.result?.content?.[0];
-    assert.equal(capsFirst.type, 'json');
-    assert.equal(capsFirst.json.backends.tracker, 'fake');
-    assert.equal(capsFirst.json.backends.docs, 'fake');
-    assert.equal(capsFirst.json.backends.scm, 'fake');
+    assert.equal(capsFirst.type, 'text');
+    const capsPayload = toolPayload(caps);
+    assert.equal(capsPayload.backends.tracker, 'fake');
+    assert.equal(capsPayload.backends.docs, 'fake');
+    assert.equal(capsPayload.backends.scm, 'fake');
 
     const call = await client.request('tools/call', {
       name: 'tracker.search',
@@ -72,18 +83,20 @@ test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
     });
     assert.ok(Array.isArray(call.result?.content));
     const first = call.result.content[0];
-    assert.equal(first.type, 'json');
-    assert.equal(first.json.items.length, 1);
-    assert.equal(first.json.items[0].id, 'ABC-99');
+    assert.equal(first.type, 'text');
+    const callPayload = toolPayload(call);
+    assert.equal(callPayload.items.length, 1);
+    assert.equal(callPayload.items[0].id, 'ABC-99');
 
     const prCreate = await client.request('tools/call', {
       name: 'scm.pr_create',
       arguments: { title: 'Test PR', body: 'Body', labels: ['ai'] }
     });
     const prFirst = prCreate.result?.content?.[0];
-    assert.equal(prFirst.type, 'json');
-    assert.equal(prFirst.json.pr.title, 'Test PR');
-    assert.equal(prFirst.json.pr.labels.includes('ai'), true);
+    assert.equal(prFirst.type, 'text');
+    const prPayload = toolPayload(prCreate);
+    assert.equal(prPayload.pr.title, 'Test PR');
+    assert.equal(prPayload.pr.labels.includes('ai'), true);
 
     const prompts = await client.request('prompts/list', {});
     assert.deepEqual(prompts.result?.prompts, []);
@@ -153,9 +166,10 @@ test('agency mcp: newline framing compatibility (fake)', async () => {
     sendLine({ jsonrpc: '2.0', id: '3', method: 'tools/call', params: { name: 'agency.tracker.search', arguments: { labels: ['ai-state:ready-for-plan'] } } });
     const call = await waitFor('3');
     const first = call.result?.content?.[0];
-    assert.equal(first.type, 'json');
-    assert.equal(first.json.items.length, 1);
-    assert.equal(first.json.items[0].id, 'ABC-98');
+    assert.equal(first.type, 'text');
+    const callPayload = toolPayload(call);
+    assert.equal(callPayload.items.length, 1);
+    assert.equal(callPayload.items[0].id, 'ABC-98');
   } finally {
     proc.kill();
   }
@@ -205,15 +219,16 @@ test('agency mcp: workflow.summary returns strict gate checklist (fake)', async 
 
     const sum = await client.request('tools/call', { name: 'workflow.summary', arguments: { id: 'ABC-1' } });
     const first = sum.result?.content?.[0];
-    assert.equal(first.type, 'json');
-    assert.equal(first.json.ticket.key, 'ABC-1');
-    assert.equal(first.json.gates.spec_approval, true);
-    assert.equal(first.json.evidence.spec.approved, true);
-    assert.equal(first.json.evidence.pr.linked, true);
-    assert.equal(Array.isArray(first.json.missing), true);
+    assert.equal(first.type, 'text');
+    const sumPayload = toolPayload(sum);
+    assert.equal(sumPayload.ticket.key, 'ABC-1');
+    assert.equal(sumPayload.gates.spec_approval, true);
+    assert.equal(sumPayload.evidence.spec.approved, true);
+    assert.equal(sumPayload.evidence.pr.linked, true);
+    assert.equal(Array.isArray(sumPayload.missing), true);
     // With only approved label present (no verified/reviewed), QA and review should be missing.
-    assert.ok(first.json.missing.includes('qa verification'));
-    assert.ok(first.json.missing.includes('code review'));
+    assert.ok(sumPayload.missing.includes('qa verification'));
+    assert.ok(sumPayload.missing.includes('code review'));
   } finally {
     proc.kill();
   }
@@ -272,11 +287,12 @@ test('agency mcp: workflow.queue returns summaries for matching tickets (fake)',
       arguments: { labels: ['ai-state:ready-for-plan'], limit: 10 }
     });
     const first = q.result?.content?.[0];
-    assert.equal(first.type, 'json');
-    assert.equal(Array.isArray(first.json.items), true);
-    assert.equal(first.json.items.length, 2);
-    assert.ok(first.json.items.find((i) => i.ticket?.key === 'ABC-10'));
-    const withSpec = first.json.items.find((i) => i.ticket?.key === 'ABC-11');
+    assert.equal(first.type, 'text');
+    const queuePayload = toolPayload(q);
+    assert.equal(Array.isArray(queuePayload.items), true);
+    assert.equal(queuePayload.items.length, 2);
+    assert.ok(queuePayload.items.find((i) => i.ticket?.key === 'ABC-10'));
+    const withSpec = queuePayload.items.find((i) => i.ticket?.key === 'ABC-11');
     assert.ok(withSpec?.evidence?.spec, 'Expected evidence.spec for ticket with Spec link');
   } finally {
     proc.kill();
@@ -324,14 +340,15 @@ test('agency mcp: workflow.gate_status renders 5-line block (fake)', async () =>
     await client.request('initialize', { protocolVersion: '2024-11-05' });
     const res = await client.request('tools/call', { name: 'workflow.gate_status', arguments: { id: 'ABC-777' } });
     const first = res.result?.content?.[0];
-    assert.equal(first.type, 'json');
-    assert.equal(Array.isArray(first.json.lines), true);
-    assert.equal(first.json.lines.length, 5);
-    assert.ok(first.json.lines[0].startsWith('Spec: '));
-    assert.ok(first.json.lines[1].startsWith('PR: '));
-    assert.ok(first.json.lines[2].startsWith('QA: '));
-    assert.ok(first.json.lines[3].startsWith('Review: '));
-    assert.ok(first.json.lines[4].startsWith('Next: '));
+    assert.equal(first.type, 'text');
+    const gatePayload = toolPayload(res);
+    assert.equal(Array.isArray(gatePayload.lines), true);
+    assert.equal(gatePayload.lines.length, 5);
+    assert.ok(gatePayload.lines[0].startsWith('Spec: '));
+    assert.ok(gatePayload.lines[1].startsWith('PR: '));
+    assert.ok(gatePayload.lines[2].startsWith('QA: '));
+    assert.ok(gatePayload.lines[3].startsWith('Review: '));
+    assert.ok(gatePayload.lines[4].startsWith('Next: '));
   } finally {
     proc.kill();
   }
@@ -397,13 +414,15 @@ test('agency mcp: workflow.apply enforces strict QA/Review markers (fake)', asyn
     });
     assert.ok(!ok.error, `Did not expect error: ${ok.error?.message || ''}`);
     const first = ok.result?.content?.[0];
-    assert.equal(first.type, 'json');
-    assert.equal(first.json.ok, true);
+    assert.equal(first.type, 'text');
+    const okPayload = toolPayload(ok);
+    assert.equal(okPayload.ok, true);
 
     const item = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-200' } });
     const itemFirst = item.result?.content?.[0];
-    assert.equal(itemFirst.type, 'json');
-    assert.ok(itemFirst.json.item.labels.includes('ai-state:verified'));
+    assert.equal(itemFirst.type, 'text');
+    const itemPayload = toolPayload(item);
+    assert.ok(itemPayload.item.labels.includes('ai-state:verified'));
   } finally {
     proc.kill();
   }
@@ -448,21 +467,22 @@ test('agency mcp: workflow.sync_plan_review can dry-run and apply (fake)', async
 
     const dry = await client.request('tools/call', { name: 'workflow.sync_plan_review', arguments: { dry_run: true } });
     const dryFirst = dry.result?.content?.[0];
-    assert.equal(dryFirst.type, 'json');
-    assert.equal(dryFirst.json.dry_run, true);
-    assert.equal(dryFirst.json.items.length, 2);
-    assert.ok(dryFirst.json.items.find((d) => d.ticket.key === 'ABC-301' && d.decision === 'approve'));
-    assert.ok(dryFirst.json.items.find((d) => d.ticket.key === 'ABC-302' && d.decision === 'changes_requested'));
+    assert.equal(dryFirst.type, 'text');
+    const dryPayload = toolPayload(dry);
+    assert.equal(dryPayload.dry_run, true);
+    assert.equal(dryPayload.items.length, 2);
+    assert.ok(dryPayload.items.find((d) => d.ticket.key === 'ABC-301' && d.decision === 'approve'));
+    assert.ok(dryPayload.items.find((d) => d.ticket.key === 'ABC-302' && d.decision === 'changes_requested'));
 
     await client.request('tools/call', { name: 'workflow.sync_plan_review', arguments: { dry_run: false } });
 
     const after1 = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-301' } });
-    const a1 = after1.result?.content?.[0].json.item.labels;
+    const a1 = toolPayload(after1).item.labels;
     assert.ok(a1.includes('ai-state:approved'));
     assert.ok(!a1.includes('ai-state:plan-review'));
 
     const after2 = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-302' } });
-    const a2 = after2.result?.content?.[0].json.item.labels;
+    const a2 = toolPayload(after2).item.labels;
     assert.ok(a2.includes('ai-state:ready-for-plan'));
     assert.ok(!a2.includes('ai-state:plan-review'));
   } finally {

@@ -3,9 +3,15 @@
   "tracker": {
     "mode": "atlassian",
     "atlassian": {
-      "backend": "mcp",
-      "mcp_url": "https://mcp.atlassian.com/v1/sse"
+      "backend": "api"
+    }
+  },
+  "opencode": {
+    "vendor_mcp": {
+      "atlassian": {
+        "enabled": true,
+        "url": "https://mcp.atlassian.com/v1/mcp"
+      }
     }
   }
 }
-

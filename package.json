@@ -14,8 +14,16 @@
     "agency": "node scripts/agency.js",
     "agency:mcp": "node scripts/agency-mcp.js",
     "agency:cli": "node scripts/agency-cli.js",
+    "demo:sleepops": "node demo/sleepops-console/server.js",
+    "demo:sleepops:test": "HOST=127.0.0.1 PORT=4317 SLEEPOPS_STRICT_PORT=1 node demo/sleepops-console/server.js",
+    "lint:demo:sleepops": "node scripts/lint-demo-sleepops.js",
+    "test:demo:sleepops": "node --test demo/sleepops-console/test/*.test.mjs",
+    "test:e2e:sleepops": "playwright test --pass-with-no-tests",
+    "test:e2e:sleepops:ui": "playwright test --ui --pass-with-no-tests",
+    "install:browsers": "playwright install chromium",
     "doctor": "node scripts/doctor.js",
     "doctor:live": "AGENCY_DOCTOR_LIVE=1 node scripts/doctor.js",
+    "doctor:demo": "node scripts/demo-preflight.js",
     "e2e:agent": "AGENCY_E2E_AGENT=1 node scripts/e2e/opencode-agent-smoke.js",
     "sim:planning": "node scripts/simulate/planning.js --json",
     "sim:pm-sync": "node scripts/simulate/pm-sync.js --json",
@@ -30,5 +38,8 @@
     "live-e2e": "node scripts/live-e2e/run.js",
     "lint:prompts": "node scripts/prompt-lint.js",
     "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
   }
 }

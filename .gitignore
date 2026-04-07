@@ -22,3 +22,8 @@ platform-mock/
 
 # Local editor state
 .qoder/
+.qwen/
+.gemini/
+playwright-report/
+test-results/
+~Documents/

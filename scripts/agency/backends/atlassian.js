@@ -40,6 +40,12 @@ function truncate(s, max) {
   return `${str.slice(0, max)}…`;
 }
 
+function formatFetchError(err) {
+  const message = err && err.message ? err.message : String(err);
+  const cause = err && err.cause && err.cause.message ? ` (${err.cause.message})` : '';
+  return `${message}${cause}`;
+}
+
 function htmlEscape(s) {
   return String(s)
     .replaceAll('&', '&amp;')
@@ -207,7 +213,7 @@ async function atlassianFetch(url, { method = 'GET', headers = {}, body } = {}) 
         await sleep(clamp(base + jitter, 250, 10_000));
         continue;
       }
-      throw err;
+      throw new Error(`${method} ${url} failed: ${formatFetchError(err)}`);
     } finally {
       clearTimeout(timeout);
     }
@@ -287,11 +293,12 @@ async function tracker_search({ labels, text, jql, limit }) {
   }
 
   const results = [];
+  const seenIssueIds = new Set();
   let startAt = 0;
   const pageSize = clamp(Number(process.env.AGENCY_ATLASSIAN_PAGE_SIZE || 50), 1, 100);
 
   while (results.length < wantedLimit) {
-    const url = new URL(`${jiraBase}/rest/api/3/search`);
+    const url = new URL(`${jiraBase}/rest/api/3/search/jql`);
     url.searchParams.set('jql', q);
     url.searchParams.set('startAt', String(startAt));
     url.searchParams.set('maxResults', String(Math.min(pageSize, wantedLimit - results.length)));
@@ -300,16 +307,23 @@ async function tracker_search({ labels, text, jql, limit }) {
     // eslint-disable-next-line no-await-in-loop
     const data = await atlassianFetch(url.toString());
     const issues = Array.isArray(data.issues) ? data.issues : [];
+    let newCount = 0;
     for (const issue of issues) {
+      const issueId = String(issue.id || issue.key || '');
+      if (issueId && seenIssueIds.has(issueId)) continue;
+      if (issueId) seenIssueIds.add(issueId);
       results.push(normalizeIssue(jiraBase, issue));
+      newCount += 1;
       if (results.length >= wantedLimit) break;
     }
     if (issues.length === 0) break;
+    if (newCount === 0) break;
     startAt += issues.length;
     const total = Number(data.total);
     if (Number.isFinite(total) && startAt >= total) break;
   }
 
+  if (results.length === 0) return { items: [] };
   return { items: results };
 }
 

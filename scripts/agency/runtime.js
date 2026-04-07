@@ -1,4 +1,5 @@
 const path = require('path');
+require('../load-env').loadEnvFiles();
 
 function getRepoRoot() {
   return path.resolve(__dirname, '..', '..');

@@ -85,9 +85,11 @@ test('config: generates opencode.jsonc for each tracker mode', () => {
     assert.equal(opencodeConfig.permission?.bash, 'ask');
 
     // MCP expectations:
-    // - Atlassian can optionally use MCP (explicitly enabled in profile config)
-    // - Otherwise, MCP is empty by default (we rely on CLI/backends)
-    const wantsAtlassianMcp = mode === 'atlassian' && profileConfig?.tracker?.atlassian?.backend === 'mcp';
+    // - The local Agency MCP is always present.
+    // - Direct vendor MCPs are optional and only generated when explicitly enabled.
+    const wantsAtlassianMcp =
+      mode === 'atlassian' &&
+      profileConfig?.opencode?.vendor_mcp?.atlassian?.enabled === true;
     if (wantsAtlassianMcp) {
       assert.ok(opencodeConfig.mcp?.atlassian, `Expected mcp.atlassian for profile=${profileName}`);
     } else {

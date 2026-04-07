@@ -197,15 +197,36 @@ function validateConfig(config) {
     errors.push('tracker.mode must be one of: atlassian, github, linear, standalone');
   }
 
-  // Atlassian backend selection (optional; defaults to api)
+  // Atlassian transport for the Agency workflow layer.
   if (config.tracker?.mode === 'atlassian') {
     const backend = config.tracker?.atlassian?.backend || 'api';
-    if (!['api', 'mcp'].includes(backend)) {
-      errors.push('tracker.atlassian.backend must be one of: api, mcp');
+    if (!['api'].includes(backend)) {
+      errors.push('tracker.atlassian.backend must be "api". Agency uses its own Atlassian adapter for workflow operations.');
     }
-    if (backend === 'mcp' && !config.tracker?.atlassian?.mcp_url) {
-      errors.push('tracker.atlassian.mcp_url is required when tracker.atlassian.backend is "mcp"');
-    }
+  }
+
+  const vendorMcpEnabled = config?.opencode?.vendor_mcp?.atlassian?.enabled;
+  if (vendorMcpEnabled !== undefined && typeof vendorMcpEnabled !== 'boolean') {
+    errors.push('opencode.vendor_mcp.atlassian.enabled must be a boolean');
+  }
+  const vendorMcpUrl = config?.opencode?.vendor_mcp?.atlassian?.url;
+  if (vendorMcpUrl !== undefined && typeof vendorMcpUrl !== 'string') {
+    errors.push('opencode.vendor_mcp.atlassian.url must be a string');
+  }
+  if (typeof vendorMcpUrl === 'string' && !vendorMcpUrl.trim()) {
+    errors.push('opencode.vendor_mcp.atlassian.url must not be empty when provided');
+  }
+  if (config?.tracker?.atlassian?.mcp_url !== undefined) {
+    warnings.push('tracker.atlassian.mcp_url is deprecated. Use opencode.vendor_mcp.atlassian.url for optional direct Atlassian MCP access.');
+  }
+  if (config?.tracker?.atlassian?.backend === 'mcp') {
+    warnings.push('tracker.atlassian.backend="mcp" is no longer supported. Agency uses the REST-backed Atlassian adapter; direct Atlassian MCP is optional operator tooling.');
+  }
+  if (config?.tracker?.mode !== 'atlassian' && vendorMcpEnabled) {
+    warnings.push('opencode.vendor_mcp.atlassian.enabled is set, but tracker.mode is not "atlassian". The direct Atlassian MCP will not be generated.');
+  }
+  if (config?.docs?.provider === 'atlassian' && config?.tracker?.mode !== 'atlassian') {
+    warnings.push('docs.provider="atlassian" is enabled while tracker.mode is not "atlassian". This is supported, but make sure Atlassian env vars are configured.');
   }
 
   // Check default model
@@ -407,21 +428,23 @@ function generateOpenCodeConfig(config, meta, { preset } = {}) {
     enabled: true
   };
 
-  const atlassianBackend = config.tracker?.atlassian?.backend || 'api';
-  if (config.tracker.mode === 'atlassian' && atlassianBackend === 'mcp') {
+  const wantsDirectAtlassianMcp =
+    config.tracker.mode === 'atlassian' &&
+    config.opencode?.vendor_mcp?.atlassian?.enabled === true;
+  if (wantsDirectAtlassianMcp) {
     mcp.atlassian = {
       type: 'local',
       command: [
         'npx',
         '-y',
         'mcp-remote',
-        config.tracker.atlassian?.mcp_url || 'https://mcp.atlassian.com/v1/sse'
+        config.opencode?.vendor_mcp?.atlassian?.url || 'https://mcp.atlassian.com/v1/mcp'
       ],
       enabled: true
     };
   }
-  // GitHub and standalone modes: no MCP configured by default
-  // Users can add custom MCP config in their project config
+  // Vendor MCPs are optional operator tools. Agents should rely on the local
+  // Agency MCP for the portable workflow/tool surface.
 
   // Build agent config
   const agents = {

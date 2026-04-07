@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "tracker": {
+    "mode": "atlassian",
+    "atlassian": {
+      "backend": "api"
+    }
+  },
+  "docs": {
+    "provider": "atlassian"
+  },
+  "scm": {
+    "provider": "none"
+  },
+  "models": {
+    "default": "openai/gpt-5.4-mini"
+  },
+  "tooling": {
+    "test_command": "npm run test:demo:sleepops",
+    "lint_command": "npm run lint:demo:sleepops"
+  }
+}

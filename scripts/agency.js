@@ -128,7 +128,7 @@ async function main() {
   try {
     if (domain === 'tracker') {
       if (action === 'search') {
-        const res = backend.tracker.search({
+        const res = await backend.tracker.search({
           label: undefined,
           labels: coerceArray(flags.label),
           text: flags.text,
@@ -140,27 +140,27 @@ async function main() {
       }
       if (action === 'get') {
         if (!flags.id) die('tracker get requires --id');
-        const res = backend.tracker.get({ id: flags.id });
+        const res = await backend.tracker.get({ id: flags.id });
         jsonOut(res, args.json);
         return;
       }
       if (action === 'comment') {
         if (!flags.id) die('tracker comment requires --id');
         if (flags.body === undefined) die('tracker comment requires --body');
-        const res = backend.tracker.comment({ id: flags.id, body: flags.body });
+        const res = await backend.tracker.comment({ id: flags.id, body: flags.body });
         jsonOut(res, args.json);
         return;
       }
       if (action === 'transition') {
         if (!flags.id) die('tracker transition requires --id');
         if (flags.status === undefined) die('tracker transition requires --status');
-        const res = backend.tracker.transition({ id: flags.id, status: flags.status });
+        const res = await backend.tracker.transition({ id: flags.id, status: flags.status });
         jsonOut(res, args.json);
         return;
       }
       if (action === 'set-labels') {
         if (!flags.id) die('tracker set-labels requires --id');
-        const res = backend.tracker.set_labels({
+        const res = await backend.tracker.set_labels({
           id: flags.id,
           add: coerceArray(flags.add),
           remove: coerceArray(flags.remove)
@@ -175,7 +175,7 @@ async function main() {
       if (action === 'create') {
         if (flags.title === undefined) die('docs create requires --title');
         if (flags.body === undefined) die('docs create requires --body');
-        const res = backend.docs.create({
+        const res = await backend.docs.create({
           title: flags.title,
           body: flags.body,
           status: flags.status,
@@ -186,13 +186,13 @@ async function main() {
       }
       if (action === 'get') {
         if (!flags.id) die('docs get requires --id');
-        const res = backend.docs.get({ id: flags.id });
+        const res = await backend.docs.get({ id: flags.id });
         jsonOut(res, args.json);
         return;
       }
       if (action === 'update') {
         if (!flags.id) die('docs update requires --id');
-        const res = backend.docs.update({
+        const res = await backend.docs.update({
           id: flags.id,
           title: flags.title,
           body: flags.body,
@@ -211,7 +211,7 @@ async function main() {
 
       if (action === 'pr-create') {
         if (flags.title === undefined) die('scm pr-create requires --title');
-        const res = backend.scm.pr_create({
+        const res = await backend.scm.pr_create({
           title: flags.title,
           body: flags.body,
           head: flags.head,
@@ -227,7 +227,7 @@ async function main() {
 
       if (action === 'pr-get') {
         if (!flags.number) die('scm pr-get requires --number');
-        const res = backend.scm.pr_get({ number: Number(flags.number) });
+        const res = await backend.scm.pr_get({ number: Number(flags.number) });
         jsonOut(res, args.json);
         return;
       }
@@ -235,14 +235,14 @@ async function main() {
       if (action === 'pr-comment') {
         if (!flags.number) die('scm pr-comment requires --number');
         if (flags.body === undefined) die('scm pr-comment requires --body');
-        const res = backend.scm.pr_comment({ number: Number(flags.number), body: flags.body });
+        const res = await backend.scm.pr_comment({ number: Number(flags.number), body: flags.body });
         jsonOut(res, args.json);
         return;
       }
 
       if (action === 'pr-set-labels') {
         if (!flags.number) die('scm pr-set-labels requires --number');
-        const res = backend.scm.pr_set_labels({
+        const res = await backend.scm.pr_set_labels({
           number: Number(flags.number),
           add: coerceArray(flags.add),
           remove: coerceArray(flags.remove)
@@ -254,7 +254,7 @@ async function main() {
       if (action === 'pr-link-ticket') {
         if (!flags.number) die('scm pr-link-ticket requires --number');
         if (!flags.ticket) die('scm pr-link-ticket requires --ticket');
-        const res = backend.scm.pr_link_ticket({ number: Number(flags.number), ticket: flags.ticket });
+        const res = await backend.scm.pr_link_ticket({ number: Number(flags.number), ticket: flags.ticket });
         jsonOut(res, args.json);
         return;
       }

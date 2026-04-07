@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SleepOps Console</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <div class="brand-logo">
+            <div class="logo-icon">SN</div>
+            <p class="brand-kicker">Sleep Number ops</p>
+          </div>
+          <h1>SleepOps Console</h1>
+          <p class="brand-copy">Internal dashboard for smart-bed connectivity and fleet support.</p>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Primary">
+          <a href="#" class="nav-item nav-item-active" data-page="incident" data-testid="nav-incident">Incident queue</a>
+          <a href="#" class="nav-item" data-page="connectivity" data-testid="nav-connectivity">Connectivity health</a>
+          <a href="#" class="nav-item" data-page="firmware" data-testid="nav-firmware">Firmware readiness</a>
+          <a href="#" class="nav-item" data-page="delivery" data-testid="nav-delivery">Delivery support</a>
+        </nav>
+
+        <section class="sidebar-card">
+          <p class="card-label">Active workflow gap</p>
+          <strong>Reconnect escalation is manual</strong>
+          <span>
+            Beds stuck in reconnecting still appear in the queue, but they are not auto-escalated
+            after 15 minutes.
+          </span>
+        </section>
+
+        <section class="sidebar-card sidebar-card-muted">
+          <p class="card-label">Product signals</p>
+          <strong>Sleep quality support</strong>
+          <span>Connectivity health, firmware posture, and support readiness remain visible.</span>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <section class="page-section" id="page-incident" data-testid="page-incident">
+        <section class="topbar">
+          <div>
+            <p class="eyebrow">Connected device operations</p>
+            <h2>Incident queue</h2>
+            <p class="lede">
+              Support and fleet teams use this view to triage smart-bed connectivity issues before
+              they degrade the nightly sleep experience.
+            </p>
+          </div>
+          <div class="topbar-meta">
+            <div class="meta-pill">
+              <span class="meta-dot"></span>
+              Demo environment healthy
+            </div>
+            <div class="meta-stat">
+              <span>Heartbeat coverage</span>
+              <strong>94.2%</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="summary-grid" id="summary" data-testid="incident-summary"></section>
+
+        <section class="signal-strip" id="signals" data-testid="incident-signals"></section>
+
+        <section class="toolbar">
+          <div class="toolbar-copy">
+            <h3>Queue filters</h3>
+            <p>Focus the queue by fleet state while keeping incident context visible.</p>
+          </div>
+          <label class="filter">
+            <span>Filter</span>
+            <select id="stateFilter" data-testid="state-filter">
+              <option value="all">All devices</option>
+              <option value="incidents">Incidents only</option>
+              <option value="reconnecting">Reconnecting</option>
+              <option value="offline">Offline</option>
+              <option value="connected">Connected</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="table-card">
+          <div class="table-heading">
+            <div>
+              <p class="card-label">Open incident queue</p>
+              <strong>Smart bed fleet triage</strong>
+            </div>
+            <span class="table-note">Reconnect escalation ticket planned via Jira and Confluence</span>
+          </div>
+          <table data-testid="incident-table">
+            <thead>
+              <tr>
+                <th>Device</th>
+                <th>Region</th>
+                <th>Status</th>
+                <th>Last heartbeat</th>
+                <th>State duration</th>
+                <th>Queue owner</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+              <tbody id="fleetRows"></tbody>
+          </table>
+        </section>
+        </section>
+
+        <!-- Connectivity Health Page -->
+        <section class="page-section" id="page-connectivity" data-testid="page-connectivity" hidden>
+          <section class="topbar">
+            <div>
+              <p class="eyebrow">Network diagnostics</p>
+              <h2>Connectivity health</h2>
+              <p class="lede">
+                Monitor signal strength, connection stability, and network quality across the device fleet.
+              </p>
+            </div>
+            <div class="topbar-meta">
+              <div class="meta-pill">
+                <span class="meta-dot"></span>
+                Network monitoring active
+              </div>
+              <div class="meta-stat">
+                <span>Avg signal strength</span>
+                <strong>-42 dBm</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="summary-grid" id="connectivitySummary" data-testid="connectivity-summary"></section>
+
+          <section class="signal-strip" id="connectivitySignals" data-testid="connectivity-signals"></section>
+
+          <section class="table-card">
+            <div class="table-heading">
+              <div>
+                <p class="card-label">Device connections</p>
+                <strong>Signal quality by device</strong>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Device</th>
+                  <th>Signal strength</th>
+                  <th>Connection type</th>
+                  <th>Packet loss</th>
+                  <th>Latency</th>
+                  <th>Quality</th>
+                </tr>
+              </thead>
+              <tbody id="connectivityRows"></tbody>
+            </table>
+          </section>
+        </section>
+
+        <!-- Firmware Readiness Page -->
+        <section class="page-section" id="page-firmware" data-testid="page-firmware" hidden>
+          <section class="topbar">
+            <div>
+              <p class="eyebrow">Software updates</p>
+              <h2>Firmware readiness</h2>
+              <p class="lede">
+                Track firmware versions, update eligibility, and deployment progress across enrolled devices.
+              </p>
+            </div>
+            <div class="topbar-meta">
+              <div class="meta-pill">
+                <span class="meta-dot"></span>
+                Latest: v4.8.2
+              </div>
+              <div class="meta-stat">
+                <span>Adoption rate</span>
+                <strong>50%</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="summary-grid" id="firmwareSummary" data-testid="firmware-summary"></section>
+
+          <section class="signal-strip" id="firmwareSignals" data-testid="firmware-signals"></section>
+
+          <section class="table-card">
+            <div class="table-heading">
+              <div>
+                <p class="card-label">Firmware inventory</p>
+                <strong>Version distribution and update status</strong>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Device</th>
+                  <th>Current version</th>
+                  <th>Target version</th>
+                  <th>Update available</th>
+                  <th>Last update</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="firmwareRows"></tbody>
+            </table>
+          </section>
+        </section>
+
+        <!-- Delivery Support Page -->
+        <section class="page-section" id="page-delivery" data-testid="page-delivery" hidden>
+          <section class="topbar">
+            <div>
+              <p class="eyebrow">Customer operations</p>
+              <h2>Delivery support</h2>
+              <p class="lede">
+                Manage new device activations, setup issues, and initial connectivity configuration.
+              </p>
+            </div>
+            <div class="topbar-meta">
+              <div class="meta-pill">
+                <span class="meta-dot"></span>
+                3 pending activations
+              </div>
+              <div class="meta-stat">
+                <span>Avg setup time</span>
+                <strong>12 min</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="summary-grid" id="deliverySummary" data-testid="delivery-summary"></section>
+
+          <section class="signal-strip" id="deliverySignals" data-testid="delivery-signals"></section>
+
+          <section class="table-card">
+            <div class="table-heading">
+              <div>
+                <p class="card-label">Active deliveries</p>
+                <strong>Pending and completed activations</strong>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Device</th>
+                  <th>Customer</th>
+                  <th>Region</th>
+                  <th>Status</th>
+                  <th>Setup progress</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="deliveryRows"></tbody>
+            </table>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/app.mjs"></script>
+  </body>
+</html>

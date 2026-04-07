@@ -196,7 +196,7 @@ git commit -m "chore: bump .agency submodule"
 - `git` (for submodules)
 - `opencode` available on PATH
 - `node` (required for `.agency/scripts/*` tooling, including Agency MCP)
-- `npx` (optional; only needed if you set `tracker.atlassian.backend` to `mcp` in config)
+- `npx` (optional; only needed if you explicitly enable direct vendor MCPs in `opencode.vendor_mcp.*`)
 - `gh` (GitHub CLI, required if you use `tracker.mode=github` and/or `scm.provider=github`)
 
 If `setup.sh` reports missing tools, you can still run setup and install the missing dependencies afterwards.
@@ -259,7 +259,7 @@ The platform uses a layered configuration system that merges settings from multi
     "provider": "github"
   },
   "models": {
-    "default": "openai/gpt-4o"
+    "default": "openai/gpt-5.4-mini"
   },
   "tooling": {
     "test_command": "npm test",
@@ -312,8 +312,27 @@ Configure that per-repo with:
 
 Atlassian supports two backend modes:
 
-- `tracker.atlassian.backend = "api"` (default): uses Jira/Confluence REST APIs directly.
-- `tracker.atlassian.backend = "mcp"`: uses `mcp-remote` with `tracker.atlassian.mcp_url` (experimental).
+- `tracker.atlassian.backend = "api"` (default and supported): Agency workflow tools use Jira/Confluence REST APIs behind the local `agency` MCP.
+- Direct vendor MCP access is optional operator tooling, configured separately under `opencode.vendor_mcp.atlassian`.
+
+Example:
+
+```json
+{
+  "tracker": {
+    "mode": "atlassian",
+    "atlassian": { "backend": "api" }
+  },
+  "opencode": {
+    "vendor_mcp": {
+      "atlassian": {
+        "enabled": true,
+        "url": "https://mcp.atlassian.com/v1/mcp"
+      }
+    }
+  }
+}
+```
 
 ### Configuration CLI
 

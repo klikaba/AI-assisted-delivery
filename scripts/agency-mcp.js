@@ -17,6 +17,8 @@
  * - Backends are selected via the same env/config as `scripts/agency.js`.
  */
 
+require('./load-env').loadEnvFiles();
+
 const { loadResolvedConfig, loadBackend, selectBackend } = require('./agency/runtime');
 const {
   parseSpecRefFromComments,
@@ -818,15 +820,23 @@ async function callTool(name, args) {
 }
 
 function wrapToolResult(result) {
-  // MCP tool results are returned as "content" blocks.
-  // Prefer JSON content for structured consumption.
+  // OpenCode expects standard MCP content blocks such as "text".
+  // Keep structured data available in `structuredContent`, and also serialize
+  // it into a text block for clients that only render textual results.
+  let text;
+  try {
+    text = JSON.stringify(result, null, 2);
+  } catch {
+    text = String(result);
+  }
   return {
     content: [
       {
-        type: 'json',
-        json: result
+        type: 'text',
+        text
       }
-    ]
+    ],
+    structuredContent: result
   };
 }
 

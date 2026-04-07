@@ -54,3 +54,32 @@ test('agency cli: supports boolean flags (e.g., --draft)', () => {
   const payload = JSON.parse(res.stdout);
   assert.equal(payload.pr.draft, true);
 });
+
+test('agency cli: awaits async tracker search backends', () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' }
+  });
+  writeJson(path.join(hostRoot, '.agency-fixtures', 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-1', key: 'ABC-1', title: 'Queued', labels: ['ai-state:ready-for-plan'], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const res = runAgency(
+    ['tracker', 'search', '--label', 'ai-state:ready-for-plan', '--json'],
+    hostRoot,
+    { AGENCY_INTEGRATION_BACKEND: 'fake' }
+  );
+  assert.equal(res.status, 0, res.stderr || res.stdout);
+
+  const payload = JSON.parse(res.stdout);
+  assert.equal(Array.isArray(payload.items), true);
+  assert.equal(payload.items.length, 1);
+  assert.equal(payload.items[0].key, 'ABC-1');
+});

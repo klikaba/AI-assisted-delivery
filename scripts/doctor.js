@@ -13,6 +13,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const cp = require('child_process');
+require('./load-env').loadEnvFiles();
 
 function envFlag(name) {
   const v = process.env[name];
