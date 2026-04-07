@@ -20,6 +20,9 @@ test('atlassian storage HTML renders headings, bullets, and code blocks while pr
   ].join('\n');
 
   const html = atlassian.__private.renderStorageHtml({ body, specStatus: 'APPROVED' });
+  assert.match(html, /<h2>Approval Gate<\/h2>/);
+  assert.match(html, /ac:structured-macro ac:name="panel"/);
+  assert.match(html, /ac:parameter ac:name="bgColor">#E3FCEF<\/ac:parameter>/);
   assert.match(html, /<strong>Spec Status:<\/strong>\s*APPROVED/);
   assert.match(html, /<h1>Summary<\/h1>/);
   assert.match(html, /<h2>Scope<\/h2>/);
@@ -133,6 +136,8 @@ test('atlassian docs create and update send formatted storage HTML payloads', as
     const updateReq = requests.find((r) => r.url.endsWith('/rest/api/content/1001') && r.options.method === 'PUT');
     const updatePayload = JSON.parse(String(updateReq.options.body));
     const updateHtml = updatePayload.body.storage.value;
+    assert.match(updateHtml, /<h2>Approval Gate<\/h2>/);
+    assert.match(updateHtml, /ac:structured-macro ac:name="panel"/);
     assert.match(updateHtml, /<strong>Spec Status:<\/strong>\s*APPROVED/);
     assert.match(updateHtml, /<h2>Updated<\/h2>/);
     assert.match(updateHtml, /ac:parameter ac:name="language">xml<\/ac:parameter>/);

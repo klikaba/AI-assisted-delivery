@@ -959,19 +959,31 @@ async function callTool(name, args) {
       if (type === 'comment') {
         // eslint-disable-next-line no-await-in-loop
         const r = await trackerBackend.tracker.comment({ id, body: String(a.body || '') });
-        results.push({ type, ok: true, result: r });
+        const ok = !(r && typeof r === 'object' && Object.prototype.hasOwnProperty.call(r, 'ok')) || Boolean(r.ok);
+        results.push({ type, ok, result: r });
+        if (!ok) {
+          throw new Error(`workflow.apply: comment action failed${r?.note ? `: ${r.note}` : ''}`);
+        }
         continue;
       }
       if (type === 'set_labels') {
         // eslint-disable-next-line no-await-in-loop
         const r = await trackerBackend.tracker.set_labels({ id, add: a.add || [], remove: a.remove || [] });
-        results.push({ type, ok: true, result: r });
+        const ok = !(r && typeof r === 'object' && Object.prototype.hasOwnProperty.call(r, 'ok')) || Boolean(r.ok);
+        results.push({ type, ok, result: r });
+        if (!ok) {
+          throw new Error(`workflow.apply: set_labels action failed${r?.note ? `: ${r.note}` : ''}`);
+        }
         continue;
       }
       if (type === 'transition') {
         // eslint-disable-next-line no-await-in-loop
         const r = await trackerBackend.tracker.transition({ id, status: String(a.status || '') });
-        results.push({ type, ok: true, result: r });
+        const ok = !(r && typeof r === 'object' && Object.prototype.hasOwnProperty.call(r, 'ok')) || Boolean(r.ok);
+        results.push({ type, ok, result: r });
+        if (!ok) {
+          throw new Error(`workflow.apply: transition action failed${r?.note ? `: ${r.note}` : ''}`);
+        }
         continue;
       }
       throw new Error(`workflow.apply: unknown action type "${type}"`);

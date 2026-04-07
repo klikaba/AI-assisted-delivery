@@ -153,16 +153,35 @@ function renderStorageBodyHtml(body) {
   return blocks.join('\n');
 }
 
-function renderStorageHtml({ body, specStatus }) {
+function renderStorageStatusBanner(specStatus) {
   const status = normalizeSpecStatus(specStatus);
-  const statusHtml = `<p><strong>Spec Status:</strong> ${htmlEscape(status)}</p>`;
+  const palette = {
+    APPROVED: { bg: '#E3FCEF', border: '#36B37E' },
+    'CHANGES REQUESTED': { bg: '#FFEBE6', border: '#DE350B' },
+    CHANGES_REQUESTED: { bg: '#FFEBE6', border: '#DE350B' },
+    DRAFT: { bg: '#DEEBFF', border: '#4C9AFF' }
+  };
+  const colors = palette[status] || { bg: '#F4F5F7', border: '#7A869A' };
+  const statusText = `<p><strong>Spec Status:</strong> ${htmlEscape(status)}</p>`;
+  return [
+    '<h2>Approval Gate</h2>',
+    `<ac:structured-macro ac:name="panel">`,
+    `<ac:parameter ac:name="bgColor">${colors.bg}</ac:parameter>`,
+    `<ac:parameter ac:name="borderColor">${colors.border}</ac:parameter>`,
+    `<ac:rich-text-body>${statusText}</ac:rich-text-body>`,
+    '</ac:structured-macro>'
+  ].join('');
+}
+
+function renderStorageHtml({ body, specStatus }) {
+  const statusHtml = renderStorageStatusBanner(specStatus);
   const contentHtml = renderStorageBodyHtml(body);
   return `${statusHtml}\n${contentHtml}`;
 }
 
 function updateSpecStatusInStorage(existingHtml, specStatus) {
   const status = normalizeSpecStatus(specStatus);
-  const statusHtml = `<p><strong>Spec Status:</strong> ${htmlEscape(status)}</p>`;
+  const statusHtml = renderStorageStatusBanner(status);
   const raw = String(existingHtml || '');
 
   // Replace in common cases.
@@ -560,19 +579,27 @@ async function tracker_update({ id, title, body }) {
 
 async function tracker_set_labels({ id, add, remove }) {
   const { jiraBase } = getAtlassianBases();
-  const current = await tracker_get({ id });
-  const set = new Set((current.item.labels || []).map(String));
-  for (const a of add || []) set.add(String(a));
-  for (const r of remove || []) set.delete(String(r));
-  const labels = Array.from(set).sort();
+  const addList = Array.from(new Set((add || []).map(String).filter(Boolean)));
+  const removeList = Array.from(new Set((remove || []).map(String).filter(Boolean)));
 
   const url = `${jiraBase}/rest/api/3/issue/${encodeURIComponent(String(id))}`;
+  const update = [];
+  for (const label of removeList) update.push({ remove: label });
+  for (const label of addList) update.push({ add: label });
+
+  if (update.length === 0) {
+    const current = await tracker_get({ id });
+    return { ok: true, labels: Array.isArray(current.item.labels) ? current.item.labels.map(String).sort() : [] };
+  }
+
   await atlassianFetch(url, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields: { labels } })
+    body: JSON.stringify({ update: { labels: update } })
   });
-  return { ok: true, labels };
+
+  const current = await tracker_get({ id });
+  return { ok: true, labels: Array.isArray(current.item.labels) ? current.item.labels.map(String).sort() : [] };
 }
 
 async function tracker_transition({ id, status }) {
