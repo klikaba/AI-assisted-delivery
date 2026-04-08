@@ -1307,12 +1307,38 @@ async function callTool(name, args) {
 
     const requestedTransitionStatus = args?.transition_status !== undefined
       ? String(args.transition_status || '').trim()
-      : 'Selected for Development';
+      : '';
     const dryRun = args?.dry_run !== undefined ? Boolean(args.dry_run) : false;
 
     const trackerBackendId = selectBackend('tracker', mode, config);
     const trackerBackend = loadBackend('tracker', trackerBackendId);
     const labelReadyForPlan = workflowLabel(config, 'ready_for_plan', 'ai-state:ready-for-plan');
+    const labelPlanReview = workflowLabel(config, 'plan_review', 'ai-state:plan-review');
+    const labelApproved = workflowLabel(config, 'approved', 'ai-state:approved');
+    const labelInQa = workflowLabel(config, 'in_qa', 'ai-state:in-qa');
+    const labelVerified = workflowLabel(config, 'verified', 'ai-state:verified');
+    const labelReviewed = workflowLabel(config, 'reviewed', 'ai-state:reviewed');
+    const labelReviewFail = workflowLabel(config, 'review_fail', 'ai-state:review-fail');
+    const labelSecurityPass = workflowLabel(config, 'security_pass', 'ai-state:security-pass');
+    const labelSecurityFail = workflowLabel(config, 'security_fail', 'ai-state:security-fail');
+
+    const ticket = await trackerBackend.tracker.get({ id });
+    const currentLabels = Array.isArray(ticket?.item?.labels) ? ticket.item.labels.map(String) : [];
+    const governedLabels = new Set([
+      labelReadyForPlan,
+      labelPlanReview,
+      labelApproved,
+      labelInQa,
+      labelVerified,
+      labelReviewed,
+      labelReviewFail,
+      labelSecurityPass,
+      labelSecurityFail
+    ]);
+    const conflictingLabels = currentLabels.filter((label) => governedLabels.has(label));
+    if (conflictingLabels.length > 0) {
+      throw new Error(`workflow.product_refine can only run before governed workflow labels are applied; ticket already has: ${conflictingLabels.join(', ')}`);
+    }
 
     let updated = null;
     if (!dryRun) {

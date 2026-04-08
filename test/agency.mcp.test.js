@@ -1415,6 +1415,100 @@ test('agency mcp: workflow.product_refine updates ticket, adds ready-for-plan, a
   }
 });
 
+test('agency mcp: workflow.product_refine does not attempt a transition unless transition_status is provided (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-711', key: 'ABC-711', title: 'Rough ticket', body: 'Rough body', status: 'To Do', labels: [], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const res = await client.request('tools/call', {
+      name: 'workflow.product_refine',
+      arguments: {
+        id: 'ABC-711',
+        title: 'Refined ticket',
+        body: 'Refined body',
+        refinement_summary: 'Clarified the problem and acceptance criteria.'
+      }
+    });
+    const payload = toolPayload(res);
+    assert.equal(payload.applied.ok, true);
+    assert.equal(payload.transition, null);
+
+    const ticket = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-711' } });
+    const ticketPayload = toolPayload(ticket);
+    assert.equal(ticketPayload.item.status, 'To Do');
+    assert.ok(ticketPayload.item.labels.includes('ai-state:ready-for-plan'));
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.product_refine rejects tickets already in governed workflow stages (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-712', key: 'ABC-712', title: 'Already governed', body: 'Existing body', status: 'Waiting For Approval', labels: ['ai-state:plan-review'], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const res = await client.request('tools/call', {
+      name: 'workflow.product_refine',
+      arguments: {
+        id: 'ABC-712',
+        title: 'Refined ticket',
+        body: 'Refined body',
+        refinement_summary: 'Clarified the problem and acceptance criteria.'
+      }
+    });
+    assert.match(
+      String(res?.error?.message || ''),
+      /workflow\.product_refine can only run before governed workflow labels are applied/
+    );
+  } finally {
+    proc.kill();
+  }
+});
+
 test('agency mcp: workflow.qa_decide handles pass and fail transitions (fake)', async () => {
   const hostRoot = mkTempHost();
   writeJson(path.join(hostRoot, '.agency-project.json'), {
