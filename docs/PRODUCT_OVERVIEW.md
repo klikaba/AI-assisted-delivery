@@ -46,6 +46,12 @@ Common failure modes:
 - human approval gates, especially spec approval
 - product-owned workflow helpers for governed transitions
 
+The first product-owned stage helpers now cover:
+
+- `workflow.product_refine`
+- `workflow.plan_finalize`
+- `workflow.dev_finalize`
+
 ## Core Capability Surface
 
 Agents talk to `agency`, not directly to vendor tools as their primary interface.
@@ -68,6 +74,12 @@ That keeps prompts stable while adapters handle provider-specific details.
 3. A human approves the spec by changing `Spec Status` in the docs system.
 4. PM Governance Sync applies that approval result back to the tracker labels.
 5. Dev, QA, Review, optional Security, and PM Release continue the governed workflow.
+
+Today, the Product, Planning, and Dev transitions are increasingly product-owned instead of prompt-orchestrated:
+
+- Product completes through `workflow.product_refine`
+- Planning completes through `workflow.plan_finalize`
+- Development completes through `workflow.dev_finalize`
 
 ## Human In The Loop
 

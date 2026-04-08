@@ -14,6 +14,7 @@ It gives teams:
 - provider-agnostic tools over Jira, Confluence, GitHub, Linear, and optional TMS systems
 - human approval gates instead of fully autonomous agent execution
 - a portable workflow state machine based on `ai-state:*` labels plus spec approval
+- product-owned stage helpers for governed completion of Product, Planning, and Dev work
 
 ## Start Here
 
@@ -51,6 +52,12 @@ High-level flow:
 3. A human approves the spec in Confluence by changing `Spec Status`.
 4. PM syncs approval back to Jira labels.
 5. Dev, QA, Review, optional Security, and PM Release continue the governed workflow.
+
+The current product-owned completion helpers are:
+
+- `workflow.product_refine`
+- `workflow.plan_finalize`
+- `workflow.dev_finalize`
 
 Use the detailed operator sequence in [Demo Runbook](docs/DEMO_RUNBOOK.md).
 
@@ -96,4 +103,3 @@ See:
 
 - [LICENSE](LICENSE)
 - [NOTICE](NOTICE)
-

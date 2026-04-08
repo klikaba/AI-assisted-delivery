@@ -20,6 +20,12 @@ Use this story:
 4. PM syncs that approval back into Jira labels.
 5. Dev, QA, Review, and PM Release move the work through governed stages.
 
+In the current product shape:
+
+- Product completion is governed through `workflow.product_refine`
+- Planning completion is governed through `workflow.plan_finalize`
+- Development completion is governed through `workflow.dev_finalize`
+
 ## Preconditions
 
 Before the demo:
@@ -100,6 +106,7 @@ PM Governance Sync then reads that status and applies the correct Jira label tra
 - Jira remains the workflow anchor
 - Confluence remains the source of truth for the spec
 - workflow state is visible through labels, not hidden in prompts
+- the most fragile stage completions are now moving behind product-owned workflow helpers
 
 ## What Not To Overclaim
 
@@ -114,4 +121,3 @@ PM Governance Sync then reads that status and applies the correct Jira label tra
 - spec approved in Confluence but PM sync not yet run
 - operator opens the wrong Confluence page
 - extra permission prompts in OpenCode slowing the flow
-
