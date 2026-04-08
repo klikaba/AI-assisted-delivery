@@ -88,17 +88,20 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
    - Do not publish a shorthand plan, prose outline, or array-of-strings step list.
    - **STOP** and ask: "I am ready to generate the implementation Spec and derived execution plan. Proceed?"
 5. **Execution:** Only when user approves:
-   - If no linked Spec exists, create one via `docs.create` (Status: DRAFT).
-   - If a linked Spec already exists in `DRAFT` or `CHANGES REQUESTED`, update it via `docs.update` instead of creating a duplicate.
-   - If you just created the Spec in this session and the ticket does not yet have a `Spec: <id> <url>` comment, pass the new Spec id directly to `plan.publish`.
-   - The Spec must be the primary artifact and should follow the required section structure above, including architecture notes and any required diagrams.
-   - Publish the structured execution plan via `plan.publish` into the linked Spec page as a secondary machine-readable artifact. The execution plan must live in the Spec page, not in Jira comments.
-   - **Transition Status:** `Waiting for Approval` (if your Jira workflow supports this status; otherwise skip).
-   - Use `workflow.apply` once to move the ticket into `<plan_review>` (default: `ai-state:plan-review`) and post a **single consolidated Jira comment** that contains:
+   - Use `workflow.plan_finalize` as the primary finalization tool for planning.
+   - Pass:
+     - the ticket id
+     - the full Spec title and body
+     - the canonical execution plan JSON
      - a short planning summary
-     - `Spec: <id> <url>`
-     - a short note that the execution plan is stored in the linked Spec
-   - Do not post separate intermediate Jira comments during the same planning session.
+     - the existing linked `spec_id` when revising a linked draft/changing spec
+     - `transition_status: "Waiting for Approval"` only if your Jira workflow supports that status; otherwise omit it
+   - `workflow.plan_finalize` owns:
+     - create/update of the Spec
+     - publishing the execution plan into the Spec page
+     - moving the ticket into `<plan_review>` (default: `ai-state:plan-review`)
+     - posting the single final Jira planning comment
+   - Do not call `docs.create`, `docs.update`, `plan.publish`, or raw Jira finalization steps separately when `workflow.plan_finalize` can perform the whole completion flow.
 6. **Signal:** End with: `✅ PLANNING COMPLETE: [TICKET_KEY] is waiting for approval.`
 
 ## Holistic Goals
@@ -118,7 +121,8 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
 
 ## Tools Usage
 - **Workflow Tools:** `capabilities.get` (confirm docs/tracker capabilities before generating the spec and execution plan).
-- **Plan Tools:** `plan.publish` (publish the canonical structured execution plan into the linked Spec page).
+- **Workflow Tools:** `workflow.plan_finalize` (preferred governed planning completion flow).
+- **Plan Tools:** `plan.publish` (secondary tool; use directly only if you are intentionally debugging or handling a recovery path outside the normal finalize flow).
 - **Agency MCP (Capability Tools):** `tracker.get`, `tracker.transition`, `docs.create`, `docs.get`, `docs.update`.
 - **Workflow Tools:** `workflow.queue` (startup listing with Gate Status).
 - **Workflow Tools:** `workflow.gate_status` (standard Gate Status rendering).

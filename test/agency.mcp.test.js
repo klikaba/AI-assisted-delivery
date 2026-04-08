@@ -72,6 +72,7 @@ test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
     assert.ok(tools.find((t) => t.name === 'agency.workflow.gate_status'));
     assert.ok(tools.find((t) => t.name === 'workflow.apply'));
     assert.ok(tools.find((t) => t.name === 'agency.workflow.apply'));
+    assert.ok(tools.find((t) => t.name === 'workflow.plan_finalize'));
     assert.ok(tools.find((t) => t.name === 'workflow.sync_plan_review'));
     assert.ok(tools.find((t) => t.name === 'agency.workflow.sync_plan_review'));
     assert.ok(tools.find((t) => t.name === 'workflow.qa_decide'));
@@ -89,6 +90,7 @@ test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
     assert.equal(capsPayload.tracker.update, true);
     assert.equal(capsPayload.plan.get, true);
     assert.equal(capsPayload.plan.publish, true);
+    assert.equal(capsPayload.workflow.plan_finalize, true);
 
     const call = await client.request('tools/call', {
       name: 'tracker.search',
@@ -1220,6 +1222,138 @@ test('agency mcp: workflow.sync_plan_review can dry-run and apply (fake)', async
     const a2 = toolPayload(after2).item.labels;
     assert.ok(a2.includes('ai-state:ready-for-plan'));
     assert.ok(!a2.includes('ai-state:plan-review'));
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.plan_finalize creates spec, publishes plan, and moves ticket to plan-review (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' },
+    docs: { provider: 'repo', repo: { dir: 'docs/agency' } }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-700', key: 'ABC-700', title: 'Plan finalize', status: 'Selected For Development', labels: ['ai-state:ready-for-plan'], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const plan = {
+      version: '1.0',
+      ticket: { id: 'ABC-700', key: 'ABC-700', title: 'Plan finalize', url: null },
+      acceptanceCriteria: ['AC-1'],
+      filesToTouch: ['src/app.js'],
+      steps: [{ id: '1', description: 'Implement the change.', acRefs: ['AC-1'] }]
+    };
+
+    const res = await client.request('tools/call', {
+      name: 'workflow.plan_finalize',
+      arguments: {
+        id: 'ABC-700',
+        spec_title: 'Spec: ABC-700',
+        spec_body: 'Spec Status: DRAFT\n\n# Summary\nPlanning body',
+        planning_summary: 'ABC-700 will add a localized reconnect escalation rule and UI treatment.',
+        plan,
+        transition_status: 'Waiting For Approval'
+      }
+    });
+    const payload = toolPayload(res);
+    assert.equal(payload.spec_action, 'create');
+    assert.equal(payload.spec.status, 'DRAFT');
+    assert.equal(payload.transition.ok, true);
+    assert.equal(payload.plan.version, '1.0');
+
+    const ticket = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-700' } });
+    const ticketPayload = toolPayload(ticket);
+    assert.ok(ticketPayload.item.labels.includes('ai-state:plan-review'));
+    assert.ok(!ticketPayload.item.labels.includes('ai-state:ready-for-plan'));
+    assert.equal(ticketPayload.item.status, 'Waiting For Approval');
+    assert.equal(ticketPayload.item.comments.length, 1);
+    assert.match(String(ticketPayload.item.comments[0] || ''), /Planning summary:/);
+    assert.match(String(ticketPayload.item.comments[0] || ''), /^Planning summary:[\s\S]*Spec:/);
+
+    const spec = await client.request('tools/call', { name: 'docs.get', arguments: { id: payload.spec.id } });
+    const specPayload = toolPayload(spec);
+    assert.match(String(specPayload.page.body || ''), /Execution Plan \(JSON\)/);
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.plan_finalize keeps label/comment success even when transition status is unavailable (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' },
+    docs: { provider: 'repo', repo: { dir: 'docs/agency' } }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-701', key: 'ABC-701', title: 'Plan finalize no transition', status: 'Selected For Development', labels: ['ai-state:ready-for-plan'], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const plan = {
+      version: '1.0',
+      ticket: { id: 'ABC-701', key: 'ABC-701', title: 'Plan finalize no transition', url: null },
+      acceptanceCriteria: ['AC-1'],
+      filesToTouch: ['src/app.js'],
+      steps: [{ id: '1', description: 'Implement the change.', acRefs: ['AC-1'] }]
+    };
+
+    const res = await client.request('tools/call', {
+      name: 'workflow.plan_finalize',
+      arguments: {
+        id: 'ABC-701',
+        spec_title: 'Spec: ABC-701',
+        spec_body: 'Spec Status: DRAFT\n\n# Summary\nPlanning body',
+        planning_summary: 'ABC-701 planning summary.',
+        plan,
+        transition_status: ''
+      }
+    });
+    const payload = toolPayload(res);
+    assert.equal(payload.applied.ok, true);
+    assert.equal(payload.transition, null);
+
+    const ticket = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-701' } });
+    const ticketPayload = toolPayload(ticket);
+    assert.ok(ticketPayload.item.labels.includes('ai-state:plan-review'));
+    assert.ok(!ticketPayload.item.labels.includes('ai-state:ready-for-plan'));
+    assert.equal(ticketPayload.item.status, 'Selected For Development');
+    assert.equal(ticketPayload.item.comments.length, 1);
   } finally {
     proc.kill();
   }

@@ -39,6 +39,7 @@ Notes:
 - `workflow.gate_status`
 - `workflow.summary`
 - `workflow.apply`
+- `workflow.plan_finalize`
 - `workflow.sync_plan_review`
 - `workflow.qa_decide`
 - `workflow.review_decide`
@@ -84,6 +85,15 @@ Current model:
 - the implementation spec is the primary planning artifact
 - the execution plan is a secondary machine-readable artifact
 - when using Confluence, the execution plan lives on the linked spec page
+
+Planning finalization:
+
+- `workflow.plan_finalize` is the preferred governed planning completion helper
+- it owns:
+  - create/update of the planning spec
+  - publication of the execution plan into the spec
+  - transition from `ready-for-plan` to `plan-review`
+  - the single final Jira planning comment
 
 ## Role Model
 

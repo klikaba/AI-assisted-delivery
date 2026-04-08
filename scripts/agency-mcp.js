@@ -254,6 +254,31 @@ function toolList() {
       }
     },
     {
+      name: 'workflow.plan_finalize',
+      description: 'Finalize planning in one governed operation: create/update spec, publish execution plan, then move the ticket into plan-review with one final Jira update.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'spec_title', 'spec_body', 'plan', 'planning_summary'],
+        properties: {
+          id: { type: 'string' },
+          spec_id: { type: 'string' },
+          spec_title: { type: 'string' },
+          spec_body: { type: 'string' },
+          planning_summary: { type: 'string' },
+          plan: {
+            oneOf: [
+              { type: 'object', additionalProperties: true },
+              { type: 'string' }
+            ]
+          },
+          transition_status: { type: 'string' },
+          parentId: { type: 'string' },
+          dry_run: { type: 'boolean' }
+        }
+      }
+    },
+    {
       name: 'scm.pr_create',
       description: 'Create a pull request (GitHub via gh when enabled).',
       inputSchema: {
@@ -551,6 +576,7 @@ function computeCapabilities({ mode, config }) {
       queue: true,
       gate_status: true,
       apply: true,
+      plan_finalize: true,
       sync_plan_review: true,
       qa_decide: true,
       review_decide: true,
@@ -1122,6 +1148,133 @@ async function callTool(name, args) {
 
     const applied = await callTool('workflow.apply', { id, strict: true, actions });
     return { version: '1.0', ticket: summary.ticket, ...result, actions, applied };
+  }
+
+  if (name === 'workflow.plan_finalize') {
+    const id = args?.id ? String(args.id) : '';
+    if (!id) throw new Error('workflow.plan_finalize requires id');
+    const specTitle = args?.spec_title !== undefined ? String(args.spec_title) : '';
+    const specBody = args?.spec_body !== undefined ? String(args.spec_body) : '';
+    const planningSummary = args?.planning_summary !== undefined ? String(args.planning_summary).trim() : '';
+    if (!specTitle) throw new Error('workflow.plan_finalize requires spec_title');
+    if (!specBody) throw new Error('workflow.plan_finalize requires spec_body');
+    if (!planningSummary) throw new Error('workflow.plan_finalize requires planning_summary');
+
+    const requestedTransitionStatus = args?.transition_status !== undefined
+      ? String(args.transition_status || '').trim()
+      : 'Waiting for Approval';
+    const dryRun = args?.dry_run !== undefined ? Boolean(args.dry_run) : false;
+
+    const trackerBackendId = selectBackend('tracker', mode, config);
+    const docsBackendId = selectBackend('docs', mode, config);
+    const trackerBackend = loadBackend('tracker', trackerBackendId);
+    const docsBackend = loadBackend('docs', docsBackendId);
+
+    const labelReadyForPlan = workflowLabel(config, 'ready_for_plan', 'ai-state:ready-for-plan');
+    const labelPlanReview = workflowLabel(config, 'plan_review', 'ai-state:plan-review');
+
+    const ticketRes = await trackerBackend.tracker.get({ id });
+    const ticket = ticketRes?.item;
+    const comments = Array.isArray(ticket?.comments) ? ticket.comments : [];
+    const linkedSpecRef = parseSpecRefFromComments(comments);
+
+    const explicitSpecId = args?.spec_id ? String(args.spec_id) : '';
+    const existingSpecId = explicitSpecId || String(linkedSpecRef?.id || '');
+
+    const specStatus = 'DRAFT';
+    let specAction = existingSpecId ? 'update' : 'create';
+    let spec;
+
+    if (!dryRun) {
+      if (existingSpecId) {
+        const updated = await docsBackend.docs.update({
+          id: existingSpecId,
+          title: specTitle,
+          body: specBody,
+          status: specStatus
+        });
+        spec = updated?.page || null;
+      } else {
+        const created = await docsBackend.docs.create({
+          title: specTitle,
+          body: specBody,
+          status: specStatus,
+          parentId: args?.parentId
+        });
+        spec = created?.page || null;
+      }
+    } else {
+      spec = {
+        id: existingSpecId || '(new-spec)',
+        title: specTitle,
+        body: specBody,
+        status: specStatus,
+        url: linkedSpecRef?.url || null
+      };
+    }
+
+    const targetSpecId = spec?.id ? String(spec.id) : existingSpecId;
+    if (!targetSpecId) throw new Error('workflow.plan_finalize could not determine target spec id');
+
+    let published;
+    if (!dryRun) {
+      published = await callTool('plan.publish', { id, spec_id: targetSpecId, plan: args?.plan });
+    } else {
+      published = await callTool('plan.publish', { id, spec_id: targetSpecId, plan: args?.plan, dry_run: true });
+    }
+
+    const specUrl = spec?.url ? String(spec.url) : (published?.spec?.url ? String(published.spec.url) : (linkedSpecRef?.url || null));
+    const finalComment = [
+      `Planning summary: ${planningSummary}`,
+      '',
+      `Spec: ${targetSpecId}${specUrl ? ` ${specUrl}` : ''}`,
+      'The execution plan is stored in the linked Spec.'
+    ].join('\n');
+
+    const actions = [
+      { type: 'set_labels', remove: [labelReadyForPlan], add: [labelPlanReview] },
+      { type: 'comment', body: finalComment }
+    ];
+
+    let applied = null;
+    if (!dryRun) {
+      applied = await callTool('workflow.apply', { id, strict: true, actions });
+    }
+
+    let transition = null;
+    if (requestedTransitionStatus) {
+      if (!dryRun) {
+        transition = await trackerBackend.tracker.transition({ id, status: requestedTransitionStatus });
+        const transitionFailed = transition && typeof transition === 'object' && Object.prototype.hasOwnProperty.call(transition, 'ok') && transition.ok === false;
+        const noMatch = /No matching transition found/i.test(String(transition?.note || ''));
+        if (transitionFailed && noMatch) {
+          transition = { ok: true, skipped: true, note: transition.note };
+        }
+      } else {
+        transition = { ok: true, skipped: true, dry_run: true, status: requestedTransitionStatus };
+      }
+    }
+
+    return {
+      version: '1.0',
+      ticket: {
+        id: ticket?.id ? String(ticket.id) : id,
+        key: ticket?.key ? String(ticket.key) : null,
+        title: ticket?.title ? String(ticket.title) : ''
+      },
+      dry_run: dryRun,
+      spec_action: specAction,
+      spec: {
+        id: targetSpecId,
+        title: specTitle,
+        status: specStatus,
+        url: specUrl
+      },
+      plan: published?.plan || null,
+      transition,
+      actions,
+      applied
+    };
   }
 
   if (name === 'workflow.sync_plan_review') {
