@@ -40,6 +40,7 @@ Notes:
 - `workflow.summary`
 - `workflow.apply`
 - `workflow.product_refine`
+- `workflow.dev_finalize`
 - `workflow.plan_finalize`
 - `workflow.sync_plan_review`
 - `workflow.qa_decide`
@@ -103,6 +104,16 @@ Product refinement finalization:
   - updating the ticket title/body
   - transition into `ready-for-plan`
   - the single final Jira refinement comment
+
+Development finalization:
+
+- `workflow.dev_finalize` is the preferred governed implementation completion helper
+- it owns:
+  - requiring an approved linked spec
+  - requiring a linked, valid execution plan
+  - transition from `approved` to `in-qa`
+  - the single final Jira implementation comment
+  - optional best-effort Jira status transition after label/comment finalization
 
 ## Role Model
 

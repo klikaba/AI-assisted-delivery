@@ -73,6 +73,7 @@ test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
     assert.ok(tools.find((t) => t.name === 'workflow.apply'));
     assert.ok(tools.find((t) => t.name === 'agency.workflow.apply'));
     assert.ok(tools.find((t) => t.name === 'workflow.product_refine'));
+    assert.ok(tools.find((t) => t.name === 'workflow.dev_finalize'));
     assert.ok(tools.find((t) => t.name === 'workflow.plan_finalize'));
     assert.ok(tools.find((t) => t.name === 'workflow.sync_plan_review'));
     assert.ok(tools.find((t) => t.name === 'agency.workflow.sync_plan_review'));
@@ -92,6 +93,7 @@ test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
     assert.equal(capsPayload.plan.get, true);
     assert.equal(capsPayload.plan.publish, true);
     assert.equal(capsPayload.workflow.product_refine, true);
+    assert.equal(capsPayload.workflow.dev_finalize, true);
     assert.equal(capsPayload.workflow.plan_finalize, true);
 
     const call = await client.request('tools/call', {
@@ -1504,6 +1506,285 @@ test('agency mcp: workflow.product_refine rejects tickets already in governed wo
       String(res?.error?.message || ''),
       /workflow\.product_refine can only run before governed workflow labels are applied/
     );
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.dev_finalize moves approved ticket to in-qa and posts one final comment (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-713', key: 'ABC-713', title: 'Ready for dev', body: 'Approved body', status: 'In Progress', labels: ['ai-state:approved'], comments: ['Spec: doc-713 docs/agency/doc-713.md'] }
+      ]
+    },
+    docs: {
+      pages: [
+        {
+          id: 'doc-713',
+          title: 'Spec 713',
+          status: 'APPROVED',
+          body: 'Spec Status: APPROVED\n\n# Summary\n\nReady to implement.\n\n## Execution Plan\n\nExecution Plan (JSON)\n```json\n{"version":"1.0","ticket":{"id":"ABC-713","key":"ABC-713","title":"Ready for dev","url":null},"acceptanceCriteria":["AC-1"],"filesToTouch":["src/app.js"],"steps":[{"id":"1","description":"Implement the change.","acRefs":["AC-1"]}]}\n```',
+          url: 'docs/agency/doc-713.md'
+        }
+      ]
+    },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const res = await client.request('tools/call', {
+      name: 'workflow.dev_finalize',
+      arguments: {
+        id: 'ABC-713',
+        implementation_summary: 'Files changed: src/app.js\nChecks run: npm test',
+        transition_status: 'In QA'
+      }
+    });
+    const payload = toolPayload(res);
+    assert.equal(payload.applied.ok, true);
+    assert.equal(payload.transition.ok, true);
+
+    const ticket = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-713' } });
+    const ticketPayload = toolPayload(ticket);
+    assert.equal(ticketPayload.item.status, 'In QA');
+    assert.ok(ticketPayload.item.labels.includes('ai-state:in-qa'));
+    assert.ok(!ticketPayload.item.labels.includes('ai-state:approved'));
+    const implementationComments = ticketPayload.item.comments.filter((comment) => /^Implementation Complete:/.test(String(comment || '')));
+    assert.equal(implementationComments.length, 1);
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.dev_finalize does not attempt a transition unless transition_status is provided (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-714', key: 'ABC-714', title: 'Ready for dev', body: 'Approved body', status: 'In Progress', labels: ['ai-state:approved'], comments: ['Spec: doc-714 docs/agency/doc-714.md'] }
+      ]
+    },
+    docs: {
+      pages: [
+        {
+          id: 'doc-714',
+          title: 'Spec 714',
+          status: 'APPROVED',
+          body: 'Spec Status: APPROVED\n\n# Summary\n\nReady to implement.\n\n## Execution Plan\n\nExecution Plan (JSON)\n```json\n{"version":"1.0","ticket":{"id":"ABC-714","key":"ABC-714","title":"Ready for dev","url":null},"acceptanceCriteria":["AC-1"],"filesToTouch":["src/app.js"],"steps":[{"id":"1","description":"Implement the change.","acRefs":["AC-1"]}]}\n```',
+          url: 'docs/agency/doc-714.md'
+        }
+      ]
+    },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const res = await client.request('tools/call', {
+      name: 'workflow.dev_finalize',
+      arguments: {
+        id: 'ABC-714',
+        implementation_summary: 'Files changed: src/app.js\nChecks run: npm test'
+      }
+    });
+    const payload = toolPayload(res);
+    assert.equal(payload.applied.ok, true);
+    assert.equal(payload.transition, null);
+
+    const ticket = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-714' } });
+    const ticketPayload = toolPayload(ticket);
+    assert.equal(ticketPayload.item.status, 'In Progress');
+    assert.ok(ticketPayload.item.labels.includes('ai-state:in-qa'));
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.dev_finalize requires approved and rejects later workflow stages (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-715', key: 'ABC-715', title: 'Not approved', body: 'Body', status: 'To Do', labels: [], comments: ['Spec: doc-715 docs/agency/doc-715.md'] },
+        { id: 'ABC-716', key: 'ABC-716', title: 'Already in QA', body: 'Body', status: 'In QA', labels: ['ai-state:approved', 'ai-state:in-qa'], comments: ['Spec: doc-716 docs/agency/doc-716.md'] }
+      ]
+    },
+    docs: {
+      pages: [
+        {
+          id: 'doc-715',
+          title: 'Spec 715',
+          status: 'APPROVED',
+          body: 'Spec Status: APPROVED\n\n# Summary\n\nReady to implement.\n\n## Execution Plan\n\nExecution Plan (JSON)\n```json\n{"version":"1.0","ticket":{"id":"ABC-715","key":"ABC-715","title":"Not approved","url":null},"acceptanceCriteria":["AC-1"],"filesToTouch":["src/app.js"],"steps":[{"id":"1","description":"Implement the change.","acRefs":["AC-1"]}]}\n```',
+          url: 'docs/agency/doc-715.md'
+        },
+        {
+          id: 'doc-716',
+          title: 'Spec 716',
+          status: 'APPROVED',
+          body: 'Spec Status: APPROVED\n\n# Summary\n\nReady to implement.\n\n## Execution Plan\n\nExecution Plan (JSON)\n```json\n{"version":"1.0","ticket":{"id":"ABC-716","key":"ABC-716","title":"Already in QA","url":null},"acceptanceCriteria":["AC-1"],"filesToTouch":["src/app.js"],"steps":[{"id":"1","description":"Implement the change.","acRefs":["AC-1"]}]}\n```',
+          url: 'docs/agency/doc-716.md'
+        }
+      ]
+    },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const missingApproved = await client.request('tools/call', {
+      name: 'workflow.dev_finalize',
+      arguments: {
+        id: 'ABC-715',
+        implementation_summary: 'Files changed: src/app.js\nChecks run: npm test'
+      }
+    });
+    assert.match(
+      String(missingApproved?.error?.message || ''),
+      /workflow\.dev_finalize requires ticket to have ai-state:approved/
+    );
+
+    const laterStage = await client.request('tools/call', {
+      name: 'workflow.dev_finalize',
+      arguments: {
+        id: 'ABC-716',
+        implementation_summary: 'Files changed: src/app.js\nChecks run: npm test'
+      }
+    });
+    assert.match(
+      String(laterStage?.error?.message || ''),
+      /workflow\.dev_finalize cannot run after later workflow labels are applied/
+    );
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.dev_finalize requires approved linked spec and valid execution plan, and retries do not duplicate comments (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-717', key: 'ABC-717', title: 'Missing plan', body: 'Body', status: 'In Progress', labels: ['ai-state:approved'], comments: ['Spec: doc-717 docs/agency/doc-717.md'] },
+        { id: 'ABC-718', key: 'ABC-718', title: 'Retry case', body: 'Body', status: 'In Progress', labels: ['ai-state:approved'], comments: ['Spec: doc-718 docs/agency/doc-718.md'] }
+      ]
+    },
+    docs: {
+      pages: [
+        {
+          id: 'doc-717',
+          title: 'Spec 717',
+          status: 'APPROVED',
+          body: 'Spec Status: APPROVED\n\n# Summary\n\nReady to implement.',
+          url: 'docs/agency/doc-717.md'
+        },
+        {
+          id: 'doc-718',
+          title: 'Spec 718',
+          status: 'APPROVED',
+          body: 'Spec Status: APPROVED\n\n# Summary\n\nReady to implement.\n\n## Execution Plan\n\nExecution Plan (JSON)\n```json\n{"version":"1.0","ticket":{"id":"ABC-718","key":"ABC-718","title":"Retry case","url":null},"acceptanceCriteria":["AC-1"],"filesToTouch":["src/app.js"],"steps":[{"id":"1","description":"Implement the change.","acRefs":["AC-1"]}]}\n```',
+          url: 'docs/agency/doc-718.md'
+        }
+      ]
+    },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const missingPlan = await client.request('tools/call', {
+      name: 'workflow.dev_finalize',
+      arguments: {
+        id: 'ABC-717',
+        implementation_summary: 'Files changed: src/app.js\nChecks run: npm test'
+      }
+    });
+    assert.match(
+      String(missingPlan?.error?.message || ''),
+      /workflow\.dev_finalize requires a linked execution plan/
+    );
+
+    const first = await client.request('tools/call', {
+      name: 'workflow.dev_finalize',
+      arguments: {
+        id: 'ABC-718',
+        implementation_summary: 'Files changed: src/app.js\nChecks run: npm test'
+      }
+    });
+    const firstPayload = toolPayload(first);
+    assert.equal(firstPayload.applied.ok, true);
+
+    const second = await client.request('tools/call', {
+      name: 'workflow.dev_finalize',
+      arguments: {
+        id: 'ABC-718',
+        implementation_summary: 'Files changed: src/app.js\nChecks run: npm test'
+      }
+    });
+    assert.match(
+      String(second?.error?.message || ''),
+      /workflow\.dev_finalize requires ticket to have ai-state:approved/
+    );
+
+    const ticket = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-718' } });
+    const ticketPayload = toolPayload(ticket);
+    const implementationComments = ticketPayload.item.comments.filter((comment) => /^Implementation Complete:/.test(String(comment || '')));
+    assert.equal(implementationComments.length, 1);
   } finally {
     proc.kill();
   }

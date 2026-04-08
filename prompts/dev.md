@@ -32,7 +32,6 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
    - List the lint/test commands you intend to run. Prefer `config.tooling.lint_command` / `config.tooling.test_command` when present; otherwise detect the project-standard commands from the repo.
    - **STOP** and ask: "I am about to implement changes to these files and run these checks. Proceed?"
 6. **Execution:**
-   - Ensure Jira status is `In Progress` (if your Jira workflow supports this status; otherwise skip).
    - Implement only the approved scope. If you discover that the approved Spec or execution plan is materially incomplete, inconsistent, or wrong, **STOP** and send the ticket back for planning instead of silently expanding scope.
    - Run lint/static checks and test/validation commands.
    - **Commit Protocol:** If you create a commit, prefix the commit message with the Jira Ticket ID.
@@ -40,14 +39,21 @@ Use `workflow.gate_status` and print its `lines` exactly (5 lines).
    - **PR Protocol (If `capabilities.get` reports `scm.enabled=true`):**
      - Open a Pull Request via `scm.pr_create` with title prefixed by the ticket key (e.g., `DEMO-1: ...`).
      - Link the ticket via `scm.pr_link_ticket`.
-   - Use `workflow.apply` once to move the ticket to `<in_qa>` (default: `ai-state:in-qa`) and post a **single consolidated Jira comment**.
-   - In that final implementation-complete Jira comment, include:
-     - `PR: <url>` when SCM is enabled
-     - files changed
-     - checks run
-     - any notable deviations from the plan
+   - Use `workflow.dev_finalize` as the preferred governed implementation completion helper.
+   - Pass:
+     - the ticket id
+     - one implementation summary string containing:
+       - `PR: <url>` when SCM is enabled
+       - files changed
+       - checks run
+       - any notable deviations from the plan
+     - `transition_status: "In QA"` only if your Jira workflow supports that status; otherwise omit it
+   - `workflow.dev_finalize` owns:
+     - removing `<approved>` (default: `ai-state:approved`)
+     - adding `<in_qa>` (default: `ai-state:in-qa`)
+     - posting the single final Jira implementation comment
    - Do not post separate intermediate Jira comments during the same implementation session.
-   - **Transition Status:** `In QA` (if your Jira workflow supports this status; otherwise skip).
+   - Do not perform governed implementation completion by separately calling `workflow.apply` when `workflow.dev_finalize` can do the whole step.
 7. **Signal:** End with: `✅ BUILD COMPLETE: [TICKET_KEY] is ready for QA.`
 
 ## The Dual-Key Safety Gate (CRITICAL)
@@ -73,9 +79,10 @@ Before you write a single line of code for a ticket, you MUST:
 ## Tools Usage
 - **Workflow Tools:** `capabilities.get` (detect whether SCM is enabled before requiring branch/PR flow).
 - **Plan Tools:** `plan.get` (load the canonical structured execution plan).
-- **Agency MCP (Capability Tools):** `tracker.get`, `tracker.transition`, `docs.get`, `scm.pr_create`, `scm.pr_link_ticket`.
+- **Agency MCP (Capability Tools):** `tracker.get`, `docs.get`, `scm.pr_create`, `scm.pr_link_ticket`.
 - **Workflow Tools:** `workflow.summary` (required for strict gate checklist + evidence discovery).
 - **Workflow Tools:** `workflow.gate_status` (standard Gate Status rendering).
-- **Workflow Tools:** `workflow.apply` (preferred for atomic comment + label/status updates).
+- **Workflow Tools:** `workflow.dev_finalize` (preferred governed implementation completion flow).
+- **Workflow Tools:** `workflow.apply` (secondary low-level workflow helper; avoid manual implementation finalization when `workflow.dev_finalize` can be used).
 - **VCS:** `git`.
 - **Runtime:** `npm`, `node`.

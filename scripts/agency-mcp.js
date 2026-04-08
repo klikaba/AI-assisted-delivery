@@ -296,6 +296,21 @@ function toolList() {
       }
     },
     {
+      name: 'workflow.dev_finalize',
+      description: 'Finalize implementation in one governed operation: move the ticket from approved to in-qa and post one final Jira implementation update.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'implementation_summary'],
+        properties: {
+          id: { type: 'string' },
+          implementation_summary: { type: 'string' },
+          transition_status: { type: 'string' },
+          dry_run: { type: 'boolean' }
+        }
+      }
+    },
+    {
       name: 'scm.pr_create',
       description: 'Create a pull request (GitHub via gh when enabled).',
       inputSchema: {
@@ -594,6 +609,7 @@ function computeCapabilities({ mode, config }) {
       gate_status: true,
       apply: true,
       product_refine: true,
+      dev_finalize: true,
       plan_finalize: true,
       sync_plan_review: true,
       qa_decide: true,
@@ -1379,6 +1395,93 @@ async function callTool(name, args) {
       },
       dry_run: dryRun,
       updated,
+      transition,
+      actions,
+      applied
+    };
+  }
+
+  if (name === 'workflow.dev_finalize') {
+    const id = args?.id ? String(args.id) : '';
+    if (!id) throw new Error('workflow.dev_finalize requires id');
+    const implementationSummary = args?.implementation_summary !== undefined ? String(args.implementation_summary).trim() : '';
+    if (!implementationSummary) throw new Error('workflow.dev_finalize requires implementation_summary');
+
+    const requestedTransitionStatus = args?.transition_status !== undefined
+      ? String(args.transition_status || '').trim()
+      : '';
+    const dryRun = args?.dry_run !== undefined ? Boolean(args.dry_run) : false;
+
+    const trackerBackendId = selectBackend('tracker', mode, config);
+    const trackerBackend = loadBackend('tracker', trackerBackendId);
+    const labelApproved = workflowLabel(config, 'approved', 'ai-state:approved');
+    const labelInQa = workflowLabel(config, 'in_qa', 'ai-state:in-qa');
+    const labelVerified = workflowLabel(config, 'verified', 'ai-state:verified');
+    const labelReviewed = workflowLabel(config, 'reviewed', 'ai-state:reviewed');
+    const labelReviewFail = workflowLabel(config, 'review_fail', 'ai-state:review-fail');
+    const labelSecurityPass = workflowLabel(config, 'security_pass', 'ai-state:security-pass');
+    const labelSecurityFail = workflowLabel(config, 'security_fail', 'ai-state:security-fail');
+
+    const ticket = await trackerBackend.tracker.get({ id });
+    const currentLabels = Array.isArray(ticket?.item?.labels) ? ticket.item.labels.map(String) : [];
+    if (!currentLabels.includes(labelApproved)) {
+      throw new Error(`workflow.dev_finalize requires ticket to have ${labelApproved}`);
+    }
+    const laterLabels = [
+      labelInQa,
+      labelVerified,
+      labelReviewed,
+      labelReviewFail,
+      labelSecurityPass,
+      labelSecurityFail
+    ].filter((label) => currentLabels.includes(label));
+    if (laterLabels.length > 0) {
+      throw new Error(`workflow.dev_finalize cannot run after later workflow labels are applied; ticket already has: ${laterLabels.join(', ')}`);
+    }
+
+    const summary = await computeSummaryForTicket(id);
+    if (!summary?.evidence?.spec?.approved) {
+      throw new Error('workflow.dev_finalize requires an approved linked Spec');
+    }
+    if (!summary?.evidence?.plan?.linked) {
+      throw new Error('workflow.dev_finalize requires a linked execution plan');
+    }
+    if (!summary?.evidence?.plan?.valid) {
+      throw new Error('workflow.dev_finalize requires a valid execution plan');
+    }
+
+    const finalComment = `Implementation Complete:\n${implementationSummary}`;
+    const actions = [
+      { type: 'set_labels', remove: [labelApproved], add: [labelInQa] },
+      { type: 'comment', body: finalComment }
+    ];
+
+    let applied = null;
+    if (!dryRun) {
+      applied = await callTool('workflow.apply', { id, strict: true, actions });
+    }
+
+    let transition = null;
+    if (requestedTransitionStatus) {
+      if (!dryRun) {
+        transition = await trackerBackend.tracker.transition({ id, status: requestedTransitionStatus });
+        const transitionFailed = transition && typeof transition === 'object' && Object.prototype.hasOwnProperty.call(transition, 'ok') && transition.ok === false;
+        const noMatch = /No matching transition found/i.test(String(transition?.note || ''));
+        if (transitionFailed && noMatch) {
+          transition = { ok: true, skipped: true, note: transition.note };
+        }
+      } else {
+        transition = { ok: true, skipped: true, dry_run: true, status: requestedTransitionStatus };
+      }
+    }
+
+    return {
+      version: '1.0',
+      ticket: {
+        id,
+        labels_before: currentLabels
+      },
+      dry_run: dryRun,
       transition,
       actions,
       applied
