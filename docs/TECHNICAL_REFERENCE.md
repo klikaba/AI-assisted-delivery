@@ -39,6 +39,7 @@ Notes:
 - `workflow.gate_status`
 - `workflow.summary`
 - `workflow.apply`
+- `workflow.product_refine`
 - `workflow.plan_finalize`
 - `workflow.sync_plan_review`
 - `workflow.qa_decide`
@@ -94,6 +95,14 @@ Planning finalization:
   - publication of the execution plan into the spec
   - transition from `ready-for-plan` to `plan-review`
   - the single final Jira planning comment
+
+Product refinement finalization:
+
+- `workflow.product_refine` is the preferred governed product-refinement completion helper
+- it owns:
+  - updating the ticket title/body
+  - transition into `ready-for-plan`
+  - the single final Jira refinement comment
 
 ## Role Model
 

@@ -279,6 +279,23 @@ function toolList() {
       }
     },
     {
+      name: 'workflow.product_refine',
+      description: 'Finalize product refinement in one governed operation: update the ticket, move it to ready-for-plan, and post one final Jira update.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'title', 'body', 'refinement_summary'],
+        properties: {
+          id: { type: 'string' },
+          title: { type: 'string' },
+          body: { type: 'string' },
+          refinement_summary: { type: 'string' },
+          transition_status: { type: 'string' },
+          dry_run: { type: 'boolean' }
+        }
+      }
+    },
+    {
       name: 'scm.pr_create',
       description: 'Create a pull request (GitHub via gh when enabled).',
       inputSchema: {
@@ -576,6 +593,7 @@ function computeCapabilities({ mode, config }) {
       queue: true,
       gate_status: true,
       apply: true,
+      product_refine: true,
       plan_finalize: true,
       sync_plan_review: true,
       qa_decide: true,
@@ -1271,6 +1289,70 @@ async function callTool(name, args) {
         url: specUrl
       },
       plan: published?.plan || null,
+      transition,
+      actions,
+      applied
+    };
+  }
+
+  if (name === 'workflow.product_refine') {
+    const id = args?.id ? String(args.id) : '';
+    if (!id) throw new Error('workflow.product_refine requires id');
+    const title = args?.title !== undefined ? String(args.title) : '';
+    const body = args?.body !== undefined ? String(args.body) : '';
+    const refinementSummary = args?.refinement_summary !== undefined ? String(args.refinement_summary).trim() : '';
+    if (!title) throw new Error('workflow.product_refine requires title');
+    if (!body) throw new Error('workflow.product_refine requires body');
+    if (!refinementSummary) throw new Error('workflow.product_refine requires refinement_summary');
+
+    const requestedTransitionStatus = args?.transition_status !== undefined
+      ? String(args.transition_status || '').trim()
+      : 'Selected for Development';
+    const dryRun = args?.dry_run !== undefined ? Boolean(args.dry_run) : false;
+
+    const trackerBackendId = selectBackend('tracker', mode, config);
+    const trackerBackend = loadBackend('tracker', trackerBackendId);
+    const labelReadyForPlan = workflowLabel(config, 'ready_for_plan', 'ai-state:ready-for-plan');
+
+    let updated = null;
+    if (!dryRun) {
+      updated = await trackerBackend.tracker.update({ id, title, body });
+    }
+
+    const finalComment = `Refinement summary: ${refinementSummary}`;
+    const actions = [
+      { type: 'set_labels', add: [labelReadyForPlan], remove: [] },
+      { type: 'comment', body: finalComment }
+    ];
+
+    let applied = null;
+    if (!dryRun) {
+      applied = await callTool('workflow.apply', { id, strict: true, actions });
+    }
+
+    let transition = null;
+    if (requestedTransitionStatus) {
+      if (!dryRun) {
+        transition = await trackerBackend.tracker.transition({ id, status: requestedTransitionStatus });
+        const transitionFailed = transition && typeof transition === 'object' && Object.prototype.hasOwnProperty.call(transition, 'ok') && transition.ok === false;
+        const noMatch = /No matching transition found/i.test(String(transition?.note || ''));
+        if (transitionFailed && noMatch) {
+          transition = { ok: true, skipped: true, note: transition.note };
+        }
+      } else {
+        transition = { ok: true, skipped: true, dry_run: true, status: requestedTransitionStatus };
+      }
+    }
+
+    return {
+      version: '1.0',
+      ticket: {
+        id,
+        title,
+        body
+      },
+      dry_run: dryRun,
+      updated,
       transition,
       actions,
       applied

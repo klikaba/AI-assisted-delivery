@@ -72,6 +72,7 @@ test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
     assert.ok(tools.find((t) => t.name === 'agency.workflow.gate_status'));
     assert.ok(tools.find((t) => t.name === 'workflow.apply'));
     assert.ok(tools.find((t) => t.name === 'agency.workflow.apply'));
+    assert.ok(tools.find((t) => t.name === 'workflow.product_refine'));
     assert.ok(tools.find((t) => t.name === 'workflow.plan_finalize'));
     assert.ok(tools.find((t) => t.name === 'workflow.sync_plan_review'));
     assert.ok(tools.find((t) => t.name === 'agency.workflow.sync_plan_review'));
@@ -90,6 +91,7 @@ test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
     assert.equal(capsPayload.tracker.update, true);
     assert.equal(capsPayload.plan.get, true);
     assert.equal(capsPayload.plan.publish, true);
+    assert.equal(capsPayload.workflow.product_refine, true);
     assert.equal(capsPayload.workflow.plan_finalize, true);
 
     const call = await client.request('tools/call', {
@@ -1354,6 +1356,60 @@ test('agency mcp: workflow.plan_finalize keeps label/comment success even when t
     assert.ok(!ticketPayload.item.labels.includes('ai-state:ready-for-plan'));
     assert.equal(ticketPayload.item.status, 'Selected For Development');
     assert.equal(ticketPayload.item.comments.length, 1);
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.product_refine updates ticket, adds ready-for-plan, and posts one final comment (fake)', async () => {
+  const hostRoot = mkTempHost();
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        { id: 'ABC-710', key: 'ABC-710', title: 'Rough ticket', body: 'Rough body', status: 'To Do', labels: [], comments: [] }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const res = await client.request('tools/call', {
+      name: 'workflow.product_refine',
+      arguments: {
+        id: 'ABC-710',
+        title: 'Refined ticket',
+        body: 'Refined body',
+        refinement_summary: 'Clarified the problem, business value, and acceptance criteria.',
+        transition_status: 'Selected For Development'
+      }
+    });
+    const payload = toolPayload(res);
+    assert.equal(payload.applied.ok, true);
+    assert.equal(payload.transition.ok, true);
+
+    const ticket = await client.request('tools/call', { name: 'tracker.get', arguments: { id: 'ABC-710' } });
+    const ticketPayload = toolPayload(ticket);
+    assert.equal(ticketPayload.item.title, 'Refined ticket');
+    assert.equal(ticketPayload.item.body, 'Refined body');
+    assert.equal(ticketPayload.item.status, 'Selected For Development');
+    assert.ok(ticketPayload.item.labels.includes('ai-state:ready-for-plan'));
+    assert.equal(ticketPayload.item.comments.length, 1);
+    assert.match(String(ticketPayload.item.comments[0] || ''), /Refinement summary:/);
   } finally {
     proc.kill();
   }
