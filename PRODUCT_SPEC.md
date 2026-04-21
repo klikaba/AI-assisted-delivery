@@ -40,16 +40,16 @@ flowchart LR
     A[Jira Issue Created] --> B[Product Owner Agent]
     B --> C[Planning Agent]
     C --> D["Spec (Docs Provider)"]
-    D -->|Human Approval| E[Architecture Agent]
-    E --> F[Developer Agent]
+    D -->|Human Approval| E[Developer Agent]
+    E --> F[QA Agent]
     F --> G[Code Review Agent]
-    G --> H[Security Agent]
-    H --> I[QA Agent]
-    I --> J[Project Manager Agent]
-    J -->|Release Approval| K[Production]
+    G --> H[Project Manager Agent]
+    H -->|Release Approval| I[Production]
 ```
 
 **No agent may bypass state transitions or approval gates.**
+
+**Optional specialist agents** such as Architecture, Security, and DevOps can be inserted when needed, but they are not part of the core path.
 
 ---
 
@@ -57,7 +57,7 @@ flowchart LR
 
 ## 1. Specialized AI Agents
 
-The platform includes **nine bounded, role-specific agents**, each aligned to a real enterprise responsibility.
+The platform includes **six core bounded agents**, plus optional specialist agents for Architecture, Security, and DevOps.
 
 ### Product Owner Agent
 
@@ -83,6 +83,7 @@ The platform includes **nine bounded, role-specific agents**, each aligned to a 
 * **Intelligent Reconnaissance**: Understands codebase structure before planning
 * **Interactive Protocol**: Waits for human approval before generating specs
 * **Atomic Operations**: Creates complete specs with proper metadata
+* **Governed Completion**: Product, planning, and implementation completion are owned by workflow helpers rather than prompt choreography
 
 ---
 
@@ -301,6 +302,7 @@ The platform **supports** compliance efforts by providing:
 * Each agent performs specific, limited functions
 * Clear state transitions prevent conflicts and ensure consistency
 * Each agent is responsible for specific labels and status updates
+* Product, planning, and implementation completion are product-owned through dedicated workflow helpers
 
 ### Communication & Signaling
 * Clear completion signals with ticket keys for transparency
@@ -334,7 +336,7 @@ The platform exposes stable, vendor-agnostic tools:
 * **Tracker:** `tracker.search`, `tracker.get`, `tracker.comment`, `tracker.transition`, `tracker.set_labels`
 * **Docs:** `docs.create`, `docs.get`, `docs.update`
 * **SCM:** `scm.pr_create`, `scm.pr_get`, `scm.pr_comment`, `scm.pr_set_labels`, `scm.pr_link_ticket`
-* **Workflow:** `workflow.queue`, `workflow.gate_status`, `workflow.summary`, `workflow.apply`, `workflow.sync_plan_review`
+* **Workflow:** `workflow.queue`, `workflow.gate_status`, `workflow.summary`, `workflow.apply`, `workflow.sync_plan_review`, `workflow.product_refine`, `workflow.plan_finalize`, `workflow.dev_finalize`
 * **TMS:** `tms.suite_ensure`, `tms.case_create`
 * **Capabilities:** `capabilities.get`
 
