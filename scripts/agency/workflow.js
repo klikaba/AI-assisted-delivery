@@ -78,10 +78,20 @@ function extractJsonBlock(comment) {
   return null;
 }
 
-function parsePlanArtifactFromText(text, ref = null) {
+function extractExecutionPlanSection(text) {
   const source = String(text || '');
-  if (!/Execution\s+Plan\s*\(JSON\)/i.test(source)) return null;
-  const jsonText = extractJsonBlock(source);
+  const marked = /<!--\s*AGENCY_EXECUTION_PLAN_START\s*-->([\s\S]*?)<!--\s*AGENCY_EXECUTION_PLAN_END\s*-->/i.exec(source);
+  if (marked) return marked[1];
+
+  const marker = /Execution\s+Plan\s*\(JSON\)/i.exec(source);
+  if (!marker) return null;
+  return source.slice(marker.index);
+}
+
+function parsePlanArtifactFromText(text, ref = null) {
+  const planSection = extractExecutionPlanSection(text);
+  if (!planSection) return null;
+  const jsonText = extractJsonBlock(planSection);
   if (!jsonText) {
     return {
       ref,
