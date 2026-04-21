@@ -1,12 +1,14 @@
-# Enterprise Agentic Delivery Platform (.agency)
+# Enterprise Delivery OS
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Test](https://img.shields.io/badge/test-deterministic-green.svg)](test/)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-**v0.7.0** | Portable, role-based Agentic SDLC for any host repository
+**v0.7.0** | Portable, role-based Delivery OS for any host repository
 
-`.agency` is a governed SDLC workflow layer for AI agents.
+Delivery OS is a governed SDLC workflow layer for AI agents.
+
+It is installed as `.agency` in host repositories.
 
 It gives teams:
 
@@ -18,11 +20,12 @@ It gives teams:
 
 ## Start Here
 
-- [Product Overview](docs/PRODUCT_OVERVIEW.md)
-- [Demo Runbook](docs/DEMO_RUNBOOK.md)
-- [Technical Reference](docs/TECHNICAL_REFERENCE.md)
-- [Agency MCP Architecture](docs/architecture/agency-mcp-architecture.md)
-- [Agency Hardening Checklist](docs/architecture/agency-hardening-checklist.md)
+- [Delivery OS Overview](docs/DELIVERY_OS_OVERVIEW.md)
+- [Delivery OS Demo Runbook](docs/DEMO_RUNBOOK.md)
+- [Delivery OS Product Overview](docs/PRODUCT_OVERVIEW.md)
+- [Delivery OS Technical Reference](docs/TECHNICAL_REFERENCE.md)
+- [Delivery OS MCP Architecture](docs/architecture/agency-mcp-architecture.md)
+- [Delivery OS Hardening Checklist](docs/architecture/agency-hardening-checklist.md)
 
 ## Quickstart
 
@@ -59,14 +62,14 @@ The current product-owned completion helpers are:
 - `workflow.plan_finalize`
 - `workflow.dev_finalize`
 
-Use the detailed operator sequence in [Demo Runbook](docs/DEMO_RUNBOOK.md).
+Use the detailed operator sequence in [Delivery OS Demo Runbook](docs/DEMO_RUNBOOK.md).
 
 ## What This Repository Contains
 
 - generated OpenCode config support
-- local Agency MCP server
+- local Delivery OS MCP server
 - provider adapters for Jira/Confluence, GitHub, Linear, and fake/offline mode
-- governed role prompts for the SDLC workflow
+- governed role prompts for the Delivery OS workflow
 - deterministic tests and simulated flows for regression protection
 
 ## Current Product Shape

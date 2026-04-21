@@ -1,14 +1,14 @@
-# Product Overview
+# Delivery OS Product Overview
 
 ## One-Line Description
 
-`.agency` is a governed SDLC workflow layer for AI agents.
+Delivery OS is a governed SDLC workflow layer for AI agents.
 
 It lets teams run Product, Planning, Dev, QA, Review, optional Security, and PM release work through a stable workflow contract instead of relying on prompt-by-prompt improvisation.
 
 ## Purpose
 
-The purpose of `.agency` is to make AI-assisted delivery:
+The purpose of Delivery OS is to make AI-assisted delivery:
 
 - structured
 - reviewable
@@ -36,7 +36,7 @@ Common failure modes:
 - QA/review/release evidence is inconsistent
 - moving the same workflow to another tracker or docs provider requires prompt rewrites
 
-`.agency` solves that by moving workflow semantics into the product itself.
+Delivery OS solves that by moving workflow semantics into the product itself.
 
 ## What It Gives A Team
 
@@ -54,7 +54,7 @@ The first product-owned stage helpers now cover:
 
 ## Core Capability Surface
 
-Agents talk to `agency`, not directly to vendor tools as their primary interface.
+Agents talk to Delivery OS, not directly to vendor tools as their primary interface.
 
 The stable capability surface is:
 
@@ -110,7 +110,7 @@ For the current demo, the strongest path is Jira + Confluence:
 - Jira is the tracker and workflow anchor
 - Confluence is the spec and execution-plan home
 - `Spec Status` is the human approval gate
-- OpenCode agents operate through the local `agency` MCP
+- OpenCode agents operate through the local Delivery OS MCP
 
 That path demonstrates the core value clearly:
 

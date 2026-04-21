@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`sleepops-console/` is a synthetic internal operations product created for the `.agency` client demo.
+`sleepops-console/` is a synthetic internal operations product created for the Delivery OS client demo.
 
 It is not meant to represent Sleep Number's real architecture, data model, or internal tooling. It is a controlled demo surface that is close enough to the smart-bed domain to make the workflow credible.
 
@@ -43,7 +43,7 @@ That is the deliberate product gap in the current baseline.
 This makes the app suitable for demonstrating:
 
 1. Jira ticket creation and backlog state
-2. Planning via `.agency`
+2. Planning via Delivery OS
 3. Confluence spec generation and approval
 4. Implementation in GitHub
 5. QA verification
@@ -87,5 +87,5 @@ This demo app is successful if a client can understand, in a few minutes:
 
 - what the product problem is
 - what the current gap is
-- how `.agency` turns that gap into a governed delivery workflow
+- how Delivery OS turns that gap into a governed delivery workflow
 - what changed in the code after the workflow runs

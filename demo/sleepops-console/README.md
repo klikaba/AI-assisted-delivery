@@ -1,6 +1,6 @@
 # SleepOps Console Demo
 
-Synthetic client demo app for the `.agency` workflow.
+Synthetic client demo app for the Delivery OS workflow.
 
 This codebase is intentionally small and self-contained. It models an internal operations dashboard for a smart-bed fleet team. The baseline app includes reconnecting devices in the incident queue, but it does **not** escalate devices that remain stuck in `reconnecting` for more than 15 minutes. That gap is the primary demo ticket for the Jira -> Confluence -> GitHub flow.
 
@@ -36,7 +36,7 @@ The sidebar explicitly calls out the **"Active Workflow Gap"**:
 > **Reconnect escalation is manual**  
 > Beds stuck in reconnecting still appear in the queue, but they are not auto-escalated after 15 minutes.
 
-This creates a clear before/after narrative for the `.agency` workflow demonstration:
+This creates a clear before/after narrative for the Delivery OS workflow demonstration:
 1. **Before:** Manual escalation via button click (alert dialog)
 2. **After:** Automated escalation based on 15-minute threshold
 

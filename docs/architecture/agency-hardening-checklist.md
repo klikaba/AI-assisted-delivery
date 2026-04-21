@@ -1,10 +1,10 @@
-# Agency Hardening Checklist
+# Delivery OS Hardening Checklist
 
 ## Canonical Architecture
 
-- Agents use the local `agency` MCP only
-- `agency` owns workflow semantics and evidence handling
-- Provider adapters are implementation details behind `agency`
+- Agents use the local Delivery OS MCP only
+- Delivery OS owns workflow semantics and evidence handling
+- Provider adapters are implementation details behind Delivery OS
 - Direct vendor MCPs are optional operator tools, not part of the normal workflow path
 
 ## Required Runtime Preconditions
@@ -32,8 +32,8 @@ This validates:
 
 1. local env presence
 2. resolved config
-3. Atlassian auth on the same path used by `agency`
-4. `agency` tracker search on the live Jira queue
+3. Atlassian auth on the same path used by Delivery OS
+4. Delivery OS tracker search on the live Jira queue
 5. GitHub CLI auth when SCM is enabled
 
 ## Readiness Criteria
@@ -50,4 +50,4 @@ The system is considered ready when:
 
 - Direct vendor MCPs are not required for agent workflows
 - OpenCode should not depend on vendor-native tool calls for normal operation
-- Demo success should not depend on mixing `agency` and direct Atlassian tools
+- Demo success should not depend on mixing Delivery OS and direct Atlassian tools

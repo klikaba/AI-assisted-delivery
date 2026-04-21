@@ -1,8 +1,8 @@
-# Agency MCP Architecture
+# Delivery OS MCP Architecture
 
 ## Decision
 
-`agency` remains the single agent-facing workflow layer.
+Delivery OS remains the single agent-facing workflow layer.
 
 Agents should use:
 
@@ -27,7 +27,7 @@ That requires:
 
 ## Boundaries
 
-### Agency MCP
+### Delivery OS MCP
 
 Owns:
 
@@ -44,7 +44,7 @@ Own:
 - authentication details
 - provider-specific payload mapping
 
-Adapters are implementation details behind `agency`.
+Adapters are implementation details behind Delivery OS.
 
 ## Direct Vendor MCPs
 
@@ -62,7 +62,7 @@ They are not the canonical path for agent workflows.
 
 Current canonical implementation:
 
-- `agency` uses the Atlassian REST-backed adapter
+- Delivery OS uses the Atlassian REST-backed adapter
 - credentials come from local env (`.env.local` / `.env`)
 
 Optional operator tool:
@@ -72,7 +72,7 @@ Optional operator tool:
 
 ## Configuration Rule
 
-- `tracker.atlassian.backend` controls the Agency workflow adapter
+- `tracker.atlassian.backend` controls the Delivery OS workflow adapter
 - `opencode.vendor_mcp.atlassian.*` controls whether OpenCode exposes the direct Atlassian MCP
 
 These concerns are intentionally separate.
@@ -81,8 +81,8 @@ These concerns are intentionally separate.
 
 For normal use:
 
-1. run agents through `agency`
-2. rely on provider adapters behind `agency`
+1. run agents through Delivery OS
+2. rely on provider adapters behind Delivery OS
 3. use direct vendor MCPs only when necessary
 
 ## Agent Model
@@ -109,5 +109,5 @@ Architecture and DevOps remain available, but they are advisory overlays rather 
 
 For demos:
 
-1. preflight the exact `agency` workflow path
+1. preflight the exact Delivery OS workflow path
 2. avoid mixing direct vendor MCP calls into the primary flow

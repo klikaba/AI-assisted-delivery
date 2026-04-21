@@ -1,8 +1,8 @@
 # Demo Workspace
 
-This `demo/` directory exists to hold synthetic client-demo assets that are intentionally separate from the `.agency` product code.
+This `demo/` directory exists to hold synthetic client-demo assets that are intentionally separate from the Delivery OS product code.
 
-The goal is not to model a real client codebase. The goal is to create a credible, self-contained application that lets us demonstrate the `.agency` workflow end to end using our own Jira, Confluence, and GitHub infrastructure.
+The goal is not to model a real client codebase. The goal is to create a credible, self-contained application that lets us demonstrate the Delivery OS workflow end to end using our own Jira, Confluence, and GitHub infrastructure.
 
 ## Why This Exists
 
@@ -15,7 +15,7 @@ For the current Sleep Number-facing demo, we do not have access to the client's 
 
 ## What We Are Aiming For
 
-The demo should prove that `.agency` can orchestrate a governed software delivery flow, not that we have access to a specific client environment.
+The demo should prove that Delivery OS can orchestrate a governed software delivery flow, not that we have access to a specific client environment.
 
 The target outcome is:
 
@@ -57,7 +57,7 @@ That means:
 
 ## Guardrails
 
-Everything under `demo/` should stay isolated from the core `.agency` implementation.
+Everything under `demo/` should stay isolated from the core Delivery OS implementation.
 
 Use this directory for:
 
@@ -68,7 +68,7 @@ Use this directory for:
 
 Do not use it for:
 
-- production `.agency` source changes
+- production Delivery OS source changes
 - core platform prompts or workflow logic
 - customer-specific confidential material
 
@@ -76,4 +76,4 @@ Do not use it for:
 
 This demo workspace is successful if it helps us tell a clear story:
 
-"Here is a realistic product problem, here is how `.agency` turns that problem into a governed delivery flow, and here is the resulting code and evidence."
+"Here is a realistic product problem, here is how Delivery OS turns that problem into a governed delivery flow, and here is the resulting code and evidence."

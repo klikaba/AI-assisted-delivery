@@ -464,7 +464,7 @@ export function navigateToPage(page, ui) {
 export function handleAction(action, id, notify = globalThis.alert) {
   if (action === 'escalate-manual') {
     notify(
-      `Manual Escalation triggered for ${id}.\n\nThis is a demonstration of the current manual process. The .agency workflow will automate this threshold behavior.`
+      `Manual Escalation triggered for ${id}.\n\nThis is a demonstration of the current manual process. The Delivery OS workflow will automate this threshold behavior.`
     );
     return;
   }

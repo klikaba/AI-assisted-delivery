@@ -1,4 +1,4 @@
-# Enterprise Agentic Delivery Platform
+# Delivery OS
 
 **Governed AI-Driven Software Delivery for the Enterprise**
 
@@ -8,7 +8,7 @@
 
 ### Autonomous Execution. Human Authority. Enterprise Trust.
 
-The **Enterprise Agentic Delivery Platform** enables organizations to accelerate software delivery using AI agents **without sacrificing governance, security, or accountability**.
+Delivery OS enables organizations to accelerate software delivery using AI agents **without sacrificing governance, security, or accountability**.
 
 The platform introduces a **governed, agentic Software Development Life Cycle (SDLC)** where AI agents autonomously execute well-defined development tasks, while **humans retain authority over approvals, risk decisions, and releases**.
 
@@ -19,7 +19,7 @@ It is **controlled automation**, designed for enterprises operating under regula
 
 ## Overview
 
-The Enterprise Agentic Delivery Platform is a **portable, role-based Agentic SDLC** distributed as a **Git submodule** that can be installed into any existing repository.
+Delivery OS is a **portable, role-based Agentic SDLC** distributed as a **Git submodule** that can be installed into any existing repository.
 
 It acts as an **automation and orchestration layer** over existing enterprise tools—issue trackers, docs systems, Git/SCM, CI/CD—enforcing governance rules while enabling AI-driven execution.
 
@@ -67,7 +67,7 @@ The platform includes **nine bounded, role-specific agents**, each aligned to a 
 * Identifies UX, accessibility, and usability concerns
 * Flags ambiguous or conflicting requirements
 * **Interactive Protocol**: Pauses for human approval before applying changes
-* **Context Awareness**: Consults Agency Memory for corporate UX standards
+* **Context Awareness**: Consults project memory for corporate UX standards
 
 ---
 
@@ -327,7 +327,7 @@ The platform **supports** compliance efforts by providing:
 * Test Management (TestRail)
 * SCM (GitHub PRs via `gh` CLI)
 
-### Capability Surface (Agency MCP)
+### Capability Surface (Delivery OS MCP)
 
 The platform exposes stable, vendor-agnostic tools:
 
@@ -405,7 +405,7 @@ opencode --config .agency/opencode.jsonc
 
 ## Summary
 
-The **Enterprise Agentic Delivery Platform** enables organizations to adopt AI-driven development **safely, incrementally, and audibly**.
+Delivery OS enables organizations to adopt AI-driven development **safely, incrementally, and audibly**.
 
 It is not about replacing teams.
 It is about **removing friction**, **enforcing standards**, and **making software delivery predictable at scale**.

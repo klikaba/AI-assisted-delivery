@@ -1,8 +1,8 @@
-# Technical Reference
+# Delivery OS Technical Reference
 
 ## Current Capability Surface
 
-`agency` exposes a stable agent-facing tool contract through the local MCP server:
+Delivery OS exposes a stable agent-facing tool contract through the local MCP server:
 
 - `tracker.*`
 - `docs.*`
@@ -224,6 +224,6 @@ node .agency/scripts/config.js --generate
 
 For deeper implementation rationale:
 
-- [Product Overview](PRODUCT_OVERVIEW.md)
-- [Agency MCP Architecture](architecture/agency-mcp-architecture.md)
-- [Agency Hardening Checklist](architecture/agency-hardening-checklist.md)
+- [Delivery OS Product Overview](PRODUCT_OVERVIEW.md)
+- [Delivery OS MCP Architecture](architecture/agency-mcp-architecture.md)
+- [Delivery OS Hardening Checklist](architecture/agency-hardening-checklist.md)
