@@ -5,6 +5,10 @@ const os = require('os');
 const path = require('path');
 
 const { spawnAgencyMcp, createClient } = require('../testlib/helpers.mcp');
+const {
+  EXECUTION_PLAN_START,
+  EXECUTION_PLAN_END
+} = require('../scripts/agency/plan-artifact');
 
 const repoRoot = path.resolve(__dirname, '..');
 
@@ -351,6 +355,8 @@ test('agency mcp: plan.publish + plan.get expose canonical execution plan (fake)
     const spec = await client.request('tools/call', { name: 'docs.get', arguments: { id: specId } });
     const specPayload = toolPayload(spec);
     assert.match(String(specPayload.page.body || ''), /Execution Plan \(JSON\)/);
+    assert.match(String(specPayload.page.body || ''), new RegExp(EXECUTION_PLAN_START));
+    assert.match(String(specPayload.page.body || ''), new RegExp(EXECUTION_PLAN_END));
   } finally {
     proc.kill();
   }

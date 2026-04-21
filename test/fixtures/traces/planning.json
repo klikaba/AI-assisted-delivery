@@ -30,7 +30,7 @@
       ]
     },
     {
-      "op": "tracker.comment",
+      "op": "docs.update",
       "args": [
         "body",
         "id"

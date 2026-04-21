@@ -95,7 +95,6 @@ test('simulate planning: execute mode creates spec, comments, relabels', () => {
 
   const stateAfter = readJson(statePath);
   assert.equal(stateAfter.docs.pages.length, 1);
-  assert.equal(stateAfter.tracker.items[0].comments.length, 2);
+  assert.equal(stateAfter.tracker.items[0].comments.length, 1);
   assert.deepEqual(stateAfter.tracker.items[0].labels.sort(), ['ai-state:plan-review']);
 });
-

@@ -22,6 +22,7 @@
  */
 
 const { loadResolvedConfig, loadBackend, selectBackend } = require('../agency/runtime');
+const { upsertExecutionPlanMarkdown } = require('../agency/plan-artifact');
 const { validatePlan } = require('../schema/plan');
 const { writeTrace } = require('./trace');
 
@@ -150,7 +151,7 @@ async function main() {
   trace.push({ op: 'docs.update', args: { id: specId, body: '<execution plan json on spec>' } });
   await docsBackend.docs.update({
     id: specId,
-    body: `${docRes.page.body || ''}\n\n## Execution Plan (JSON)\n\n\`\`\`json\n${JSON.stringify(plan, null, 2)}\n\`\`\``,
+    body: upsertExecutionPlanMarkdown(docRes.page.body || '', plan),
     status: docRes.page.status
   });
 

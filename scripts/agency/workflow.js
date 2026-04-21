@@ -1,4 +1,4 @@
-const { validatePlan } = require('../schema/plan');
+const { parsePlanArtifactFromText } = require('./plan-artifact');
 
 function parseSpecRefFromComments(comments) {
   const list = Array.isArray(comments) ? comments.map(String) : [];
@@ -63,60 +63,6 @@ function parseTestCasesRefFromComments(comments) {
     if (m) return String(m[1]).trim();
   }
   return null;
-}
-
-function extractJsonBlock(comment) {
-  const text = String(comment || '');
-  const confluenceCode = /<ac:plain-text-body><!\[CDATA\[([\s\S]*?)\]\]><\/ac:plain-text-body>/i.exec(text);
-  if (confluenceCode) return confluenceCode[1].replaceAll(']]]]><![CDATA[>', ']]>').trim();
-  const fenced = /```json\s*([\s\S]*?)```/i.exec(text) || /```\s*([\s\S]*?)```/i.exec(text);
-  if (fenced) return fenced[1].trim();
-
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start >= 0 && end > start) return text.slice(start, end + 1).trim();
-  return null;
-}
-
-function extractExecutionPlanSection(text) {
-  const source = String(text || '');
-  const marked = /<!--\s*AGENCY_EXECUTION_PLAN_START\s*-->([\s\S]*?)<!--\s*AGENCY_EXECUTION_PLAN_END\s*-->/i.exec(source);
-  if (marked) return marked[1];
-
-  const marker = /Execution\s+Plan\s*\(JSON\)/i.exec(source);
-  if (!marker) return null;
-  return source.slice(marker.index);
-}
-
-function parsePlanArtifactFromText(text, ref = null) {
-  const planSection = extractExecutionPlanSection(text);
-  if (!planSection) return null;
-  const jsonText = extractJsonBlock(planSection);
-  if (!jsonText) {
-    return {
-      ref,
-      plan: null,
-      valid: false,
-      errors: ['Execution plan found but JSON payload could not be extracted']
-    };
-  }
-  try {
-    const plan = JSON.parse(jsonText);
-    const validation = validatePlan(plan);
-    return {
-      ref,
-      plan,
-      valid: validation.ok,
-      errors: validation.ok ? [] : validation.errors
-    };
-  } catch (err) {
-    return {
-      ref,
-      plan: null,
-      valid: false,
-      errors: [`Plan JSON parse failed: ${err && err.message ? err.message : String(err)}`]
-    };
-  }
 }
 
 function parsePlanArtifactFromComments(comments) {

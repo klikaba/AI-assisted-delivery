@@ -3,6 +3,13 @@ const { test } = require('node:test');
 
 const { validatePlan } = require('../scripts/schema/plan');
 const { parsePlanArtifactFromText } = require('../scripts/agency/workflow');
+const {
+  EXECUTION_PLAN_START,
+  EXECUTION_PLAN_END,
+  EXECUTION_PLAN_MACRO_TITLE,
+  executionPlanMarkdown,
+  executionPlanStorageHtml
+} = require('../scripts/agency/plan-artifact');
 
 test('plan schema: accepts valid plan', () => {
   const plan = {
@@ -30,6 +37,10 @@ function validPlanJson(id = 'ABC-1') {
     filesToTouch: ['src/app.js'],
     steps: [{ id: '1', description: 'Do thing', acRefs: ['AC-1'] }]
   }, null, 2);
+}
+
+function validPlan(id = 'ABC-1') {
+  return JSON.parse(validPlanJson(id));
 }
 
 test('plan parser: ignores earlier Confluence code macros before execution plan', () => {
@@ -111,4 +122,45 @@ test('plan parser: reads marker-bounded Confluence storage section', () => {
   const res = parsePlanArtifactFromText(html);
   assert.equal(res.valid, true, res.errors?.join('\n'));
   assert.equal(res.plan.ticket.id, 'ABC-4');
+});
+
+test('plan renderer: emits shared markers for Markdown execution plans', () => {
+  const markdown = executionPlanMarkdown(validPlan('ABC-5'));
+  assert.match(markdown, new RegExp(`<!-- ${EXECUTION_PLAN_START} -->`));
+  assert.match(markdown, new RegExp(`<!-- ${EXECUTION_PLAN_END} -->`));
+  assert.match(markdown, /## Execution Plan \(JSON\)/);
+
+  const res = parsePlanArtifactFromText(markdown);
+  assert.equal(res.valid, true, res.errors?.join('\n'));
+  assert.equal(res.plan.ticket.id, 'ABC-5');
+});
+
+test('plan renderer: emits comment and title markers for Confluence storage execution plans', () => {
+  const html = executionPlanStorageHtml(validPlan('ABC-6'));
+  assert.match(html, new RegExp(`<!-- ${EXECUTION_PLAN_START} -->`));
+  assert.match(html, new RegExp(`<!-- ${EXECUTION_PLAN_END} -->`));
+  assert.match(html, new RegExp(`<ac:parameter ac:name="title">${EXECUTION_PLAN_MACRO_TITLE}</ac:parameter>`));
+
+  const res = parsePlanArtifactFromText(html);
+  assert.equal(res.valid, true, res.errors?.join('\n'));
+  assert.equal(res.plan.ticket.id, 'ABC-6');
+});
+
+test('plan parser: reads Confluence title marker when comment markers are absent', () => {
+  const html = [
+    '<ac:structured-macro ac:name="code">',
+    '<ac:parameter ac:name="title">DIAGRAM</ac:parameter>',
+    '<ac:plain-text-body><![CDATA[flowchart LR]]></ac:plain-text-body>',
+    '</ac:structured-macro>',
+    '<h2>Execution Plan (JSON)</h2>',
+    '<ac:structured-macro ac:name="code">',
+    `<ac:parameter ac:name="title">${EXECUTION_PLAN_MACRO_TITLE}</ac:parameter>`,
+    '<ac:parameter ac:name="language">json</ac:parameter>',
+    `<ac:plain-text-body><![CDATA[${validPlanJson('ABC-7')}]]></ac:plain-text-body>`,
+    '</ac:structured-macro>'
+  ].join('');
+
+  const res = parsePlanArtifactFromText(html);
+  assert.equal(res.valid, true, res.errors?.join('\n'));
+  assert.equal(res.plan.ticket.id, 'ABC-7');
 });

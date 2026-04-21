@@ -35,36 +35,11 @@ const {
   workflowLabel,
   workflowGate
 } = require('./agency/workflow');
+const {
+  upsertExecutionPlanMarkdown,
+  upsertExecutionPlanStorage
+} = require('./agency/plan-artifact');
 const { validatePlan } = require('./schema/plan');
-
-function executionPlanMarkdown(plan) {
-  return `<!-- AGENCY_EXECUTION_PLAN_START -->\n## Execution Plan (JSON)\n\n\`\`\`json\n${JSON.stringify(plan, null, 2)}\n\`\`\`\n<!-- AGENCY_EXECUTION_PLAN_END -->`;
-}
-
-function executionPlanStorageHtml(plan) {
-  const json = JSON.stringify(plan, null, 2).replaceAll(']]>', ']]]]><![CDATA[>');
-  return `<!-- AGENCY_EXECUTION_PLAN_START -->\n<h2>Execution Plan (JSON)</h2>\n<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">json</ac:parameter><ac:plain-text-body><![CDATA[${json}]]></ac:plain-text-body></ac:structured-macro>\n<!-- AGENCY_EXECUTION_PLAN_END -->`;
-}
-
-function upsertExecutionPlanMarkdown(body, plan) {
-  const section = executionPlanMarkdown(plan);
-  const source = String(body || '').trim();
-  const markerRe = /<!--\s*AGENCY_EXECUTION_PLAN_START\s*-->[\s\S]*?<!--\s*AGENCY_EXECUTION_PLAN_END\s*-->/i;
-  if (markerRe.test(source)) return source.replace(markerRe, section);
-  const re = /(^|\n)##\s+Execution Plan \(JSON\)\s*\n[\s\S]*?(?=\n##\s+|\n#\s+|$)/i;
-  if (re.test(source)) return source.replace(re, `$1${section}`);
-  return source ? `${source}\n\n${section}` : section;
-}
-
-function upsertExecutionPlanStorage(body, plan) {
-  const section = executionPlanStorageHtml(plan);
-  const source = String(body || '').trim();
-  const markerRe = /<!--\s*AGENCY_EXECUTION_PLAN_START\s*-->[\s\S]*?<!--\s*AGENCY_EXECUTION_PLAN_END\s*-->/i;
-  if (markerRe.test(source)) return source.replace(markerRe, section);
-  const re = /<h2>\s*Execution Plan \(JSON\)\s*<\/h2>[\s\S]*?(?=<h1\b|<h2\b|$)/i;
-  if (re.test(source)) return source.replace(re, section);
-  return source ? `${source}\n${section}` : section;
-}
 
 function writeStderr(line) {
   process.stderr.write(`${line}\n`);

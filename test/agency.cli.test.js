@@ -5,6 +5,11 @@ const os = require('os');
 const path = require('path');
 const cp = require('child_process');
 
+const {
+  EXECUTION_PLAN_START,
+  EXECUTION_PLAN_END
+} = require('../scripts/agency/plan-artifact');
+
 const repoRoot = path.resolve(__dirname, '..');
 const agencyScript = path.join(repoRoot, 'scripts', 'agency.js');
 
@@ -164,6 +169,8 @@ test('agency cli: plan publish/get round-trips on fake backend', () => {
   assert.equal(spec.status, 0, spec.stderr || spec.stdout);
   const specPayload = JSON.parse(spec.stdout);
   assert.match(String(specPayload.page.body || ''), /Execution Plan \(JSON\)/);
+  assert.match(String(specPayload.page.body || ''), new RegExp(EXECUTION_PLAN_START));
+  assert.match(String(specPayload.page.body || ''), new RegExp(EXECUTION_PLAN_END));
 });
 
 test('agency cli: plan publish rejects ticket mismatch', () => {
