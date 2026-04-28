@@ -7,7 +7,8 @@ const path = require('path');
 const { spawnAgencyMcp, createClient } = require('../testlib/helpers.mcp');
 const {
   EXECUTION_PLAN_START,
-  EXECUTION_PLAN_END
+  EXECUTION_PLAN_END,
+  executionPlanMarkdown
 } = require('../scripts/agency/plan-artifact');
 
 const repoRoot = path.resolve(__dirname, '..');
@@ -29,6 +30,16 @@ function toolPayload(response) {
   if (first.type === 'text') return JSON.parse(first.text);
   if (first.type === 'json') return first.json;
   return undefined;
+}
+
+function validPlan(id = 'ABC-1') {
+  return {
+    version: '1.0',
+    ticket: { id, key: id, title: 'Plan target', url: null },
+    acceptanceCriteria: ['AC-1'],
+    filesToTouch: ['src/app.js'],
+    steps: [{ id: '1', description: 'Implement', acRefs: ['AC-1'] }]
+  };
 }
 
 test('agency mcp: initialize + tools/list + tools/call (fake)', async () => {
@@ -198,8 +209,9 @@ test('agency mcp: newline framing compatibility (fake)', async () => {
   }
 });
 
-test('agency mcp: workflow.summary returns strict gate checklist (fake)', async () => {
+test('agency mcp: workflow.summary treats approved ticket as ready for development (fake)', async () => {
   const hostRoot = mkTempHost();
+  const plan = validPlan('ABC-1');
   writeJson(path.join(hostRoot, '.agency-project.json'), {
     version: '1.0',
     tracker: { mode: 'atlassian' },
@@ -229,7 +241,7 @@ test('agency mcp: workflow.summary returns strict gate checklist (fake)', async 
   const docsDir = path.join(hostRoot, 'docs', 'agency');
   writeJson(path.join(docsDir, 'doc-1.json'), { id: 'doc-1', title: 'Spec: ABC-1', status: 'APPROVED' });
   fs.mkdirSync(docsDir, { recursive: true });
-  fs.writeFileSync(path.join(docsDir, 'doc-1.md'), 'Spec Status: APPROVED\n', 'utf8');
+  fs.writeFileSync(path.join(docsDir, 'doc-1.md'), `Spec Status: APPROVED\n\n${executionPlanMarkdown(plan)}`, 'utf8');
 
   const proc = spawnAgencyMcp({
     repoRoot,
@@ -247,11 +259,19 @@ test('agency mcp: workflow.summary returns strict gate checklist (fake)', async 
     assert.equal(sumPayload.ticket.key, 'ABC-1');
     assert.equal(sumPayload.gates.spec_approval, true);
     assert.equal(sumPayload.evidence.spec.approved, true);
+    assert.equal(sumPayload.evidence.plan.linked, true);
+    assert.equal(sumPayload.evidence.plan.valid, true);
     assert.equal(sumPayload.evidence.pr.linked, true);
     assert.equal(Array.isArray(sumPayload.missing), true);
-    // With only approved label present (no verified/reviewed), QA and review should be missing.
-    assert.ok(sumPayload.missing.includes('qa verification'));
-    assert.ok(sumPayload.missing.includes('code review'));
+    assert.deepEqual(sumPayload.missing, []);
+    assert.deepEqual(sumPayload.current_blockers, []);
+    assert.ok(sumPayload.future_gates.includes('qa verification'));
+    assert.ok(sumPayload.future_gates.includes('code review'));
+
+    const gate = await client.request('tools/call', { name: 'workflow.gate_status', arguments: { id: 'ABC-1' } });
+    const gatePayload = toolPayload(gate);
+    assert.equal(gatePayload.lines[2], 'QA: pending');
+    assert.equal(gatePayload.lines[3], 'Review: pending');
   } finally {
     proc.kill();
   }
@@ -738,6 +758,108 @@ test('agency mcp: workflow.gate_status reports PR as n/a when scm is disabled', 
     const payload = toolPayload(res);
     assert.equal(payload.lines[1], 'PR: n/a');
     assert.equal(payload.summary.evidence.pr.required, false);
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.gate_status gives developer next action when SCM is disabled', async () => {
+  const hostRoot = mkTempHost();
+  const plan = validPlan('ABC-21');
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' },
+    docs: { provider: 'repo', repo: { dir: 'docs/agency' } },
+    scm: { provider: 'none' }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        {
+          id: 'ABC-21',
+          key: 'ABC-21',
+          title: 'SCM disabled ready for dev',
+          labels: ['ai-state:approved'],
+          comments: ['Spec: doc-21 docs/agency/doc-21.md']
+        }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const docsDir = path.join(hostRoot, 'docs', 'agency');
+  writeJson(path.join(docsDir, 'doc-21.json'), { id: 'doc-21', title: 'Spec: ABC-21', status: 'APPROVED' });
+  fs.mkdirSync(docsDir, { recursive: true });
+  fs.writeFileSync(path.join(docsDir, 'doc-21.md'), `Spec Status: APPROVED\n\n${executionPlanMarkdown(plan)}`, 'utf8');
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake', AGENCY_DOCS_BACKEND: 'repo', AGENCY_SCM_BACKEND: 'none' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const res = await client.request('tools/call', { name: 'workflow.gate_status', arguments: { id: 'ABC-21' } });
+    const payload = toolPayload(res);
+    assert.equal(payload.lines[1], 'PR: n/a');
+    assert.equal(payload.lines[4], 'Next: Run Developer Agent.');
+    assert.deepEqual(payload.summary.current_blockers, []);
+  } finally {
+    proc.kill();
+  }
+});
+
+test('agency mcp: workflow.gate_status gives security next action for security blocker', async () => {
+  const hostRoot = mkTempHost();
+  const plan = validPlan('ABC-22');
+  writeJson(path.join(hostRoot, '.agency-project.json'), {
+    version: '1.0',
+    tracker: { mode: 'atlassian' },
+    docs: { provider: 'repo', repo: { dir: 'docs/agency' } },
+    scm: { provider: 'none' },
+    workflow: { gates: { security_audit: true } }
+  });
+
+  const fixtureDir = path.join(hostRoot, '.agency-fixtures');
+  writeJson(path.join(fixtureDir, 'state.json'), {
+    tracker: {
+      items: [
+        {
+          id: 'ABC-22',
+          key: 'ABC-22',
+          title: 'Security pending',
+          labels: ['ai-state:verified', 'ai-state:reviewed'],
+          comments: ['Spec: doc-22 docs/agency/doc-22.md', 'QA: PASS', 'Review: PASS']
+        }
+      ]
+    },
+    docs: { pages: [] },
+    scm: { prs: [] }
+  });
+
+  const docsDir = path.join(hostRoot, 'docs', 'agency');
+  writeJson(path.join(docsDir, 'doc-22.json'), { id: 'doc-22', title: 'Spec: ABC-22', status: 'APPROVED' });
+  fs.mkdirSync(docsDir, { recursive: true });
+  fs.writeFileSync(path.join(docsDir, 'doc-22.md'), `Spec Status: APPROVED\n\n${executionPlanMarkdown(plan)}`, 'utf8');
+
+  const proc = spawnAgencyMcp({
+    repoRoot,
+    env: { AGENCY_HOST_ROOT: hostRoot, AGENCY_INTEGRATION_BACKEND: 'fake', AGENCY_DOCS_BACKEND: 'repo', AGENCY_SCM_BACKEND: 'none' }
+  });
+  const client = createClient(proc);
+
+  try {
+    await client.request('initialize', { protocolVersion: '2024-11-05' });
+
+    const res = await client.request('tools/call', { name: 'workflow.gate_status', arguments: { id: 'ABC-22' } });
+    const payload = toolPayload(res);
+    assert.ok(payload.summary.current_blockers.includes('security audit'));
+    assert.equal(payload.lines[4], 'Next: Run Security Agent to audit.');
   } finally {
     proc.kill();
   }

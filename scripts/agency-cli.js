@@ -18,6 +18,7 @@
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const cp = require('child_process');
 require('./load-env').loadEnvFiles();
@@ -25,7 +26,8 @@ const {
   parseSpecRefFromComments,
   parsePrRefFromComments,
   parseGitHubPrNumberFromUrl,
-  workflowLabel
+  workflowLabel,
+  classifyWorkflowGates
 } = require('./agency/workflow');
 
 function repoRoot() {
@@ -171,6 +173,10 @@ Usage:
   agency labels [--mode atlassian|github|linear|standalone]
   agency next [--label <label[,label...]>] [--limit <n>]
   agency open --id <ticketIdOrKey>
+  agency workflow diagnose --id <ticketIdOrKey> [--json]
+  agency plan get --id <ticketIdOrKey> [--json]
+  agency plan check --id <ticketIdOrKey> [--json]
+  agency plan republish --id <ticketIdOrKey> [--spec-id <specId>] [--json]
   agency spec approve --id <specId>
 
 Notes:
@@ -205,6 +211,60 @@ function runAgencyJson(args) {
   }
 }
 
+function printJson(obj) {
+  process.stdout.write(`${JSON.stringify(obj, null, 2)}\n`);
+}
+
+function planStatus(planRes) {
+  if (!planRes?.found) return 'missing';
+  return planRes.valid ? 'valid' : 'invalid';
+}
+
+function printPlanCheck(planRes) {
+  const key = planRes?.ticket?.key || planRes?.ticket?.id || '(unknown)';
+  process.stdout.write(`${key}: execution plan ${planStatus(planRes)}\n`);
+  if (planRes?.ref) {
+    const refId = planRes.ref.id ? ` ${planRes.ref.id}` : '';
+    process.stdout.write(`Source: ${planRes.ref.marker || 'unknown'}${refId}${planRes.ref.url ? ` ${planRes.ref.url}` : ''}\n`);
+  }
+  if (planRes?.plan?.version) process.stdout.write(`Version: ${planRes.plan.version}\n`);
+  if (Array.isArray(planRes?.errors) && planRes.errors.length > 0) {
+    process.stdout.write(`Errors: ${planRes.errors.join('; ')}\n`);
+  }
+}
+
+function planCheck({ id, json }) {
+  const planRes = runAgencyJson(['plan', 'get', '--id', id]);
+  if (json) printJson(planRes);
+  else printPlanCheck(planRes);
+  return planRes.found && planRes.valid ? 0 : 1;
+}
+
+function planRepublish({ id, specId, json }) {
+  const planRes = runAgencyJson(['plan', 'get', '--id', id]);
+  if (!planRes.found) die(`No execution plan found for ${id}`);
+  if (!planRes.valid) die(`Execution plan for ${id} is invalid: ${(planRes.errors || []).join('; ') || 'unknown error'}`);
+  if (!planRes.plan) die(`Execution plan payload missing for ${id}`);
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agency-plan-'));
+  const planFile = path.join(tmpDir, 'plan.json');
+  fs.writeFileSync(planFile, JSON.stringify(planRes.plan, null, 2) + '\n');
+
+  const publishArgs = ['plan', 'publish', '--id', id, '--file', planFile];
+  if (specId) publishArgs.push('--spec-id', specId);
+  const published = runAgencyJson(publishArgs);
+
+  if (json) {
+    printJson(published);
+  } else {
+    const key = planRes?.ticket?.key || planRes?.ticket?.id || id;
+    process.stdout.write(`${key}: execution plan republished\n`);
+    if (published?.spec?.id) {
+      process.stdout.write(`Spec: ${published.spec.id}${published.spec.url ? ` ${published.spec.url}` : ''}\n`);
+    }
+  }
+}
+
 function loadResolvedConfigBestEffort() {
   try {
     const res = runNode('scripts/config.js', []);
@@ -219,7 +279,7 @@ function getWorkflowLabel(config, key, fallback) {
   return workflowLabel(config, key, fallback);
 }
 
-function printTicketSummary({ ticket, spec, pr }) {
+function printTicketSummary({ ticket, spec, pr, prRequired = true }) {
   const key = ticket.key || ticket.id;
   process.stdout.write(`${key}: ${firstLine(ticket.title || '')}\n`);
   if (ticket.url) process.stdout.write(`URL: ${ticket.url}\n`);
@@ -234,7 +294,9 @@ function printTicketSummary({ ticket, spec, pr }) {
   } else {
     process.stdout.write('Spec: missing\n');
   }
-  if (pr) {
+  if (!prRequired) {
+    process.stdout.write('PR: n/a\n');
+  } else if (pr) {
     const prLine = pr.number
       ? `PR: ${pr.state || 'UNKNOWN'} (#${pr.number}${pr.url ? ` ${pr.url}` : ''})`
       : `PR: linked (${pr.url || 'unknown'})`;
@@ -242,6 +304,127 @@ function printTicketSummary({ ticket, spec, pr }) {
   } else {
     process.stdout.write('PR: missing\n');
   }
+}
+
+function diagnoseWorkflow({ id, json }) {
+  const ticketRes = runAgencyJson(['tracker', 'get', '--id', id]);
+  const ticket = ticketRes.item || {};
+  const comments = Array.isArray(ticket.comments) ? ticket.comments : [];
+  const labels = Array.isArray(ticket.labels) ? ticket.labels : [];
+  const config = loadResolvedConfigBestEffort();
+
+  const specRef = parseSpecRefFromComments(comments);
+  let spec = null;
+  if (specRef?.id) {
+    try {
+      const page = runAgencyJson(['docs', 'get', '--id', String(specRef.id)]).page;
+      spec = {
+        id: String(specRef.id),
+        status: page?.status ? String(page.status) : 'UNKNOWN',
+        title: page?.title ? String(page.title) : null,
+        url: page?.url ? String(page.url) : (specRef.url || null)
+      };
+    } catch (err) {
+      spec = { id: String(specRef.id), status: 'UNKNOWN', url: specRef.url || null, error: err && err.message ? err.message : String(err) };
+    }
+  } else if (specRef?.url) {
+    spec = { id: null, status: 'UNKNOWN', url: specRef.url };
+  }
+
+  let plan = null;
+  try {
+    plan = runAgencyJson(['plan', 'get', '--id', id]);
+  } catch (err) {
+    plan = { found: false, valid: false, errors: [err && err.message ? err.message : String(err)] };
+  }
+
+  const prRef = parsePrRefFromComments(comments);
+  const pr = prRef?.url ? { url: prRef.url, number: parseGitHubPrNumberFromUrl(prRef.url) } : null;
+
+  const labelsNeeded = {
+    approved: getWorkflowLabel(config, 'approved', 'ai-state:approved'),
+    inQa: getWorkflowLabel(config, 'in_qa', 'ai-state:in-qa'),
+    verified: getWorkflowLabel(config, 'verified', 'ai-state:verified'),
+    reviewed: getWorkflowLabel(config, 'reviewed', 'ai-state:reviewed')
+  };
+  const gates = config?.workflow?.gates || {};
+  const gateSpec = gates.spec_approval !== false;
+  const gateQa = gates.qa_verification !== false;
+  const gateReview = gates.code_review !== false;
+  const scmEnabled = String(config?.scm?.provider || 'none') !== 'none';
+  const specApproved = !gateSpec || String(spec?.status || '').toUpperCase() === 'APPROVED';
+  const qaPassed = !gateQa || labels.includes(labelsNeeded.verified);
+  const reviewPassed = !gateReview || labels.includes(labelsNeeded.reviewed);
+  const gateState = classifyWorkflowGates({
+    config,
+    labels,
+    spec,
+    planLinked: Boolean(plan?.found),
+    planValid: Boolean(plan?.valid),
+    prLinked: Boolean(pr),
+    scmEnabled
+  });
+
+  let next = 'No next action determined.';
+  if (!spec) next = 'Run Planning Agent to create/link a Spec.';
+  else if (!plan?.found) next = 'Run Planning Agent or `agency plan republish` after a valid plan exists.';
+  else if (!plan.valid) next = 'Repair the execution plan, then run `agency plan republish`.';
+  else if (gateSpec && !specApproved) next = 'Approve the Spec, then run PM Governance Sync.';
+  else if (labels.includes(labelsNeeded.approved)) next = 'Developer Agent can start.';
+  else if (scmEnabled && !pr && (labels.includes(labelsNeeded.inQa) || labels.includes(labelsNeeded.verified) || labels.includes(labelsNeeded.reviewed))) next = 'Link the implementation PR, then continue the current gate.';
+  else if (labels.includes(labelsNeeded.inQa)) next = 'QA Engineer Agent can verify.';
+  else if (labels.includes(labelsNeeded.verified) && !reviewPassed) next = 'Code Reviewer Agent can review.';
+  else if (labels.includes(labelsNeeded.verified) && reviewPassed) next = 'Project Manager Agent can release.';
+
+  const missing = gateState.current_blockers;
+
+  const diagnosis = {
+    version: '1.0',
+    ticket: {
+      id: ticket.id ? String(ticket.id) : id,
+      key: ticket.key ? String(ticket.key) : null,
+      title: ticket.title ? String(ticket.title) : '',
+      url: ticket.url ? String(ticket.url) : null,
+      labels
+    },
+    spec: spec || { missing: true },
+    plan: plan
+      ? { found: Boolean(plan.found), valid: Boolean(plan.valid), errors: plan.errors || [], ref: plan.ref || null }
+      : { found: false, valid: false, errors: ['plan.get unavailable'] },
+    pr: pr ? { ...pr, linked: true, required: scmEnabled } : { missing: scmEnabled, linked: false, required: scmEnabled },
+    gates: {
+      spec_approval: { required: gateSpec, passed: specApproved },
+      qa_verification: { required: gateQa, passed: qaPassed },
+      code_review: { required: gateReview, passed: reviewPassed }
+    },
+    stage: gateState.stage,
+    current_blockers: gateState.current_blockers,
+    future_gates: gateState.future_gates,
+    missing,
+    next
+  };
+
+  if (json) {
+    printJson(diagnosis);
+    return 0;
+  }
+
+  const key = diagnosis.ticket.key || diagnosis.ticket.id;
+  process.stdout.write(`${key}: ${firstLine(diagnosis.ticket.title)}\n`);
+  process.stdout.write(`Labels: ${labels.length > 0 ? labels.join(', ') : '(none)'}\n`);
+  if (spec) {
+    process.stdout.write(`Spec: ${spec.status || 'UNKNOWN'}${spec.id ? ` (${spec.id})` : ''}${spec.url ? ` ${spec.url}` : ''}\n`);
+  } else {
+    process.stdout.write('Spec: missing\n');
+  }
+  process.stdout.write(`Execution plan: ${planStatus(plan)}\n`);
+  if (Array.isArray(plan?.errors) && plan.errors.length > 0) {
+    process.stdout.write(`Plan errors: ${plan.errors.join('; ')}\n`);
+  }
+  process.stdout.write(`PR: ${scmEnabled ? (pr?.url || 'missing') : 'n/a'}\n`);
+  process.stdout.write(`Missing gates: ${missing.length > 0 ? missing.join(', ') : 'none'}\n`);
+  process.stdout.write(`Next: ${next}\n`);
+  return 0;
 }
 
 function requiredAiStateLabels() {
@@ -464,34 +647,89 @@ function main() {
       }
     }
 
-    printTicketSummary({ ticket, spec, pr });
-
     const config = loadResolvedConfigBestEffort();
+    const scmEnabled = String(config?.scm?.provider || 'none') !== 'none';
+    printTicketSummary({ ticket, spec, pr, prRequired: scmEnabled });
+
     const labelApproved = getWorkflowLabel(config, 'approved', 'ai-state:approved');
+    const labelInQa = getWorkflowLabel(config, 'in_qa', 'ai-state:in-qa');
+    const labelVerified = getWorkflowLabel(config, 'verified', 'ai-state:verified');
+    const labelReviewed = getWorkflowLabel(config, 'reviewed', 'ai-state:reviewed');
     const gateSpec = config?.workflow?.gates?.spec_approval !== false;
-    const gates = config?.workflow?.gates || {};
-    const gateReview = gates.code_review !== false;
-    const gateQa = gates.qa_verification !== false;
+    let plan = null;
+    try {
+      plan = runAgencyJson(['plan', 'get', '--id', id]);
+    } catch {
+      plan = { found: false, valid: false };
+    }
+    const ticketLabels = Array.isArray(ticket.labels) ? ticket.labels : [];
+    const gateState = classifyWorkflowGates({
+      config,
+      labels: ticketLabels,
+      spec,
+      planLinked: Boolean(plan?.found),
+      planValid: Boolean(plan?.valid),
+      prLinked: Boolean(pr),
+      scmEnabled
+    });
+    const missing = gateState.current_blockers;
 
-    const missing = [];
-    if (gateSpec && (!spec || String(spec.status || '').toUpperCase() !== 'APPROVED')) missing.push('spec approval');
-    if (gateReview && !(Array.isArray(ticket.labels) && ticket.labels.includes(getWorkflowLabel(config, 'reviewed', 'ai-state:reviewed')))) missing.push('code review');
-    if (gateQa && !(Array.isArray(ticket.labels) && ticket.labels.includes(getWorkflowLabel(config, 'verified', 'ai-state:verified')))) missing.push('qa verification');
-
-    if (Array.isArray(ticket.labels) && ticket.labels.includes(labelApproved)) {
+    if (ticketLabels.includes(labelApproved) && missing.length === 0) {
       process.stdout.write(`Next hint: ticket is ${labelApproved}; run the Dev agent when spec is APPROVED.\n`);
     } else if (!spec) {
       process.stdout.write('Next hint: run the Planning agent to create/link a Spec.\n');
     } else if (gateSpec && String(spec.status || '').toUpperCase() !== 'APPROVED') {
       process.stdout.write(`Next hint: approve the Spec (e.g. \`agency spec approve --id ${spec.id}\`), then add label ${labelApproved}.\n`);
-    } else if (!pr) {
-      process.stdout.write('Next hint: run the Dev agent to create/link a PR.\n');
     } else if (missing.length > 0) {
       process.stdout.write(`Next hint: missing gates: ${missing.join(', ')}.\n`);
+    } else if (ticketLabels.includes(labelInQa)) {
+      process.stdout.write(`Next hint: ticket is ${labelInQa}; run the QA agent.\n`);
+    } else if (ticketLabels.includes(labelVerified)) {
+      process.stdout.write(`Next hint: ticket is ${labelVerified}; run the Review agent.\n`);
+    } else if (ticketLabels.includes(labelReviewed)) {
+      process.stdout.write(`Next hint: ticket is ${labelReviewed}; release can proceed.\n`);
     } else {
       process.stdout.write('Next hint: all configured gates look satisfied.\n');
     }
     return;
+  }
+
+  if (cmd === 'workflow') {
+    const sub = args._[1];
+    if (sub === 'diagnose') {
+      const id = args.flags.id ? String(args.flags.id) : '';
+      if (!id) die('agency workflow diagnose requires --id <ticketIdOrKey>');
+      const code = diagnoseWorkflow({ id, json: Boolean(args.flags.json) });
+      process.exit(code);
+    }
+    die(`Unknown workflow command: ${sub || '(missing)'}`);
+  }
+
+  if (cmd === 'plan') {
+    const sub = args._[1];
+    const id = args.flags.id ? String(args.flags.id) : '';
+    if (sub === 'get') {
+      if (!id) die('agency plan get requires --id <ticketIdOrKey>');
+      const out = runAgencyJson(['plan', 'get', '--id', id]);
+      if (args.flags.json) printJson(out);
+      else printPlanCheck(out);
+      return;
+    }
+    if (sub === 'check') {
+      if (!id) die('agency plan check requires --id <ticketIdOrKey>');
+      const code = planCheck({ id, json: Boolean(args.flags.json) });
+      process.exit(code);
+    }
+    if (sub === 'republish') {
+      if (!id) die('agency plan republish requires --id <ticketIdOrKey>');
+      planRepublish({
+        id,
+        specId: args.flags['spec-id'] ? String(args.flags['spec-id']) : '',
+        json: Boolean(args.flags.json)
+      });
+      return;
+    }
+    die(`Unknown plan command: ${sub || '(missing)'}`);
   }
 
   if (cmd === 'spec') {

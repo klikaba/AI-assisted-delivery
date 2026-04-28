@@ -97,6 +97,117 @@ function workflowGate(config, key, fallback = true) {
   return fallback;
 }
 
+function workflowLabels(config) {
+  return {
+    ready_for_plan: workflowLabel(config, 'ready_for_plan', 'ai-state:ready-for-plan'),
+    plan_review: workflowLabel(config, 'plan_review', 'ai-state:plan-review'),
+    approved: workflowLabel(config, 'approved', 'ai-state:approved'),
+    in_qa: workflowLabel(config, 'in_qa', 'ai-state:in-qa'),
+    verified: workflowLabel(config, 'verified', 'ai-state:verified'),
+    reviewed: workflowLabel(config, 'reviewed', 'ai-state:reviewed'),
+    security_pass: workflowLabel(config, 'security_pass', 'ai-state:security-pass'),
+    security_fail: workflowLabel(config, 'security_fail', 'ai-state:security-fail')
+  };
+}
+
+function workflowStage(labels, labelsNeeded) {
+  const defs = labelsNeeded || workflowLabels(null);
+  if (safeLabelIncludes(labels, defs.reviewed)) return 'reviewed';
+  if (safeLabelIncludes(labels, defs.verified)) return 'verified';
+  if (safeLabelIncludes(labels, defs.in_qa)) return 'in_qa';
+  if (safeLabelIncludes(labels, defs.approved)) return 'approved';
+  if (safeLabelIncludes(labels, defs.plan_review)) return 'plan_review';
+  if (safeLabelIncludes(labels, defs.ready_for_plan)) return 'ready_for_plan';
+  return 'none';
+}
+
+function classifyWorkflowGates({
+  config,
+  labels,
+  spec,
+  planLinked,
+  planValid,
+  prLinked,
+  scmEnabled,
+  qaMarker,
+  reviewMarker,
+  securityMarker,
+  testCasesRef,
+  tmsProvider
+}) {
+  const list = Array.isArray(labels) ? labels.map(String) : [];
+  const labelsNeeded = workflowLabels(config);
+  const stage = workflowStage(list, labelsNeeded);
+
+  const gateSpec = workflowGate(config, 'spec_approval', true);
+  const gateQa = workflowGate(config, 'qa_verification', true);
+  const gateReview = workflowGate(config, 'code_review', true);
+  const gateSecurity = workflowGate(config, 'security_audit', false);
+  const gateTestCases = workflowGate(config, 'test_cases', true);
+  const requiresTmsCases = gateTestCases && String(tmsProvider || 'none') !== 'none';
+
+  const specPresent = Boolean(spec && !spec.missing);
+  const specApproved = !gateSpec || normalizeStatus(spec?.status) === 'APPROVED';
+  const hasPlan = Boolean(planLinked);
+  const validPlan = Boolean(planValid);
+  const hasPr = Boolean(prLinked);
+  const prRequired = Boolean(scmEnabled);
+  const qaPassed = !gateQa || safeLabelIncludes(list, labelsNeeded.verified);
+  const reviewPassed = !gateReview || safeLabelIncludes(list, labelsNeeded.reviewed);
+  const securityPassed = !gateSecurity
+    || safeLabelIncludes(list, labelsNeeded.security_pass)
+    || normalizeStatus(securityMarker) === 'PASS';
+
+  const isCurrentQa = stage === 'in_qa';
+  const isCurrentReview = stage === 'verified';
+  const isCurrentRelease = stage === 'verified' || stage === 'reviewed';
+  const isPastDevelopment = stage === 'in_qa' || stage === 'verified' || stage === 'reviewed';
+
+  const gateItems = [
+    { name: 'spec link', required: true, passed: specPresent, current: !specPresent },
+    { name: 'spec approval', required: gateSpec && specPresent, passed: specApproved, current: gateSpec && specPresent && !specApproved },
+    { name: 'execution plan', required: specPresent, passed: hasPlan, current: specPresent && !hasPlan },
+    { name: 'valid execution plan', required: hasPlan, passed: validPlan, current: hasPlan && !validPlan },
+    { name: 'pull request', required: prRequired, passed: hasPr, current: prRequired && isPastDevelopment && !hasPr },
+    { name: 'qa verification', required: gateQa, passed: qaPassed, current: gateQa && isCurrentQa && !qaPassed },
+    { name: 'code review', required: gateReview, passed: reviewPassed, current: gateReview && isCurrentReview && !reviewPassed },
+    { name: 'security audit', required: gateSecurity, passed: securityPassed, current: gateSecurity && isCurrentRelease && !securityPassed },
+    {
+      name: 'test cases',
+      required: requiresTmsCases,
+      passed: Boolean(testCasesRef),
+      current: requiresTmsCases && (isCurrentQa || isCurrentReview) && !testCasesRef
+    }
+  ];
+
+  const currentBlockers = gateItems
+    .filter((g) => g.required && !g.passed && g.current)
+    .map((g) => g.name);
+  const futureGates = gateItems
+    .filter((g) => g.required && !g.passed && !g.current)
+    .map((g) => g.name);
+
+  return {
+    stage,
+    labels: labelsNeeded,
+    gates: {
+      spec_approval: { required: gateSpec, passed: specApproved },
+      qa_verification: { required: gateQa, passed: qaPassed },
+      code_review: { required: gateReview, passed: reviewPassed },
+      security_audit: { required: gateSecurity, passed: securityPassed },
+      test_cases: { required: requiresTmsCases, passed: Boolean(testCasesRef) },
+      pull_request: { required: prRequired, passed: !prRequired || hasPr }
+    },
+    current_blockers: currentBlockers,
+    future_gates: futureGates,
+    markers: {
+      qa: qaMarker || null,
+      review: reviewMarker || null,
+      security: securityMarker || null
+    }
+  };
+}
+
 module.exports = {
   parseSpecRefFromComments,
   parsePrRefFromComments,
@@ -110,5 +221,8 @@ module.exports = {
   normalizeStatus,
   safeLabelIncludes,
   workflowLabel,
-  workflowGate
+  workflowGate,
+  workflowLabels,
+  workflowStage,
+  classifyWorkflowGates
 };

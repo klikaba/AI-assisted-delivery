@@ -48,6 +48,13 @@ Notes:
 - `workflow.security_decide`
 - `workflow.release`
 
+Workflow summary gate fields:
+
+- `missing` is kept for compatibility and means current-stage blockers.
+- `current_blockers` is the explicit machine-readable blocker list for the ticket's current workflow stage.
+- `future_gates` lists required gates that are expected later and should not block the current agent.
+- `workflow.gate_status` renders future QA/review/PR work as `pending`, not `missing`.
+
 ## Plan Artifact Contract
 
 Execution plans are first-class artifacts via:
@@ -81,6 +88,15 @@ Execution plan contract:
 - `plan.version` must be exactly `"1.0"`.
 - `plan.ticket` must be an object, not a string.
 - `plan.steps` must be an array of objects with `id`, `description`, and `acRefs`.
+
+Execution plan artifact envelope:
+
+- Markdown/repo docs are wrapped with HTML comments:
+  - `AGENCY_EXECUTION_PLAN_START`
+  - `AGENCY_EXECUTION_PLAN_END`
+- Confluence storage docs use the same comment markers when preserved.
+- Confluence storage docs also mark the plan code macro with title `AGENCY_EXECUTION_PLAN` so `plan.get` can still find the artifact if comments are stripped.
+- For compatibility with older specs, `plan.get` falls back to the `Execution Plan (JSON)` heading.
 
 Current model:
 
@@ -215,6 +231,15 @@ node .agency/scripts/config.js --generate
 
 # Show ticket summary
 ./.agency/bin/agency open --id JIRA-123
+
+# Diagnose why a ticket can or cannot move through the workflow
+./.agency/bin/agency workflow diagnose --id JIRA-123
+
+# Check the linked execution plan artifact
+./.agency/bin/agency plan check --id JIRA-123
+
+# Republish an existing valid execution plan using the current artifact envelope
+./.agency/bin/agency plan republish --id JIRA-123
 
 # Update ticket title/body
 ./.agency/bin/agency tracker update --id JIRA-123 --title "Refined title" --body "Refined description"

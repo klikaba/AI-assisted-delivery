@@ -33,7 +33,8 @@ const {
   normalizeStatus,
   safeLabelIncludes,
   workflowLabel,
-  workflowGate
+  workflowGate,
+  classifyWorkflowGates
 } = require('./agency/workflow');
 const {
   upsertExecutionPlanMarkdown,
@@ -725,15 +726,16 @@ async function callTool(name, args) {
 
     const prRequired = s?.evidence?.pr?.required !== false;
     const prLinked = Boolean(s?.evidence?.pr?.linked);
-    const prLine = prRequired ? (prLinked ? 'linked' : 'missing') : 'n/a';
+    const currentBlockers = Array.isArray(s?.current_blockers) ? s.current_blockers : (Array.isArray(s?.missing) ? s.missing : []);
+    const prLine = prRequired ? (prLinked ? 'linked' : (currentBlockers.includes('pull request') ? 'missing' : 'pending')) : 'n/a';
 
     const qaMarker = s?.evidence?.qa?.marker ? String(s.evidence.qa.marker).toUpperCase() : null;
     const qaPassed = Boolean(s?.evidence?.qa?.passed);
-    const qaLine = qaMarker === 'PASS' || qaPassed ? 'PASS' : qaMarker === 'FAIL' ? 'FAIL' : 'missing';
+    const qaLine = qaMarker === 'PASS' || qaPassed ? 'PASS' : qaMarker === 'FAIL' ? 'FAIL' : currentBlockers.includes('qa verification') ? 'missing' : 'pending';
 
     const reviewMarker = s?.evidence?.review?.marker ? String(s.evidence.review.marker).toUpperCase() : null;
     const reviewPassed = Boolean(s?.evidence?.review?.passed);
-    const reviewLine = reviewMarker === 'PASS' || reviewPassed ? 'PASS' : reviewMarker === 'FAIL' ? 'FAIL' : 'missing';
+    const reviewLine = reviewMarker === 'PASS' || reviewPassed ? 'PASS' : reviewMarker === 'FAIL' ? 'FAIL' : currentBlockers.includes('code review') ? 'missing' : 'pending';
 
     const next = s?.next ? String(s.next).replace(/\s+/g, ' ').trim() : 'N/A';
 
@@ -854,6 +856,21 @@ async function callTool(name, args) {
     const qaPassed = !gateQa || safeLabelIncludes(labels, labelVerified);
     const securityPassed = !gateSecurity || safeLabelIncludes(labels, labelSecurityPass) || securityMarker === 'PASS';
 
+    const gateState = classifyWorkflowGates({
+      config,
+      labels,
+      spec,
+      planLinked: Boolean(planRef),
+      planValid: Boolean(planRef?.valid),
+      prLinked: Boolean(pr),
+      scmEnabled,
+      qaMarker,
+      reviewMarker,
+      securityMarker,
+      testCasesRef,
+      tmsProvider
+    });
+
     const evidence = {
       spec: spec ? { ...spec, approved: specApproved } : { approved: !gateSpec, missing: gateSpec },
       plan: planRef
@@ -872,14 +889,7 @@ async function callTool(name, args) {
       security: { required: gateSecurity, passed: securityPassed, label: labelSecurityPass, marker: securityMarker }
     };
 
-    const missing = [];
-    if (gateSpec && !specApproved) missing.push('spec approval');
-    if (spec && !planRef) missing.push('execution plan');
-    if (planRef && !planRef.valid) missing.push('valid execution plan');
-    if (gateQa && !qaPassed) missing.push('qa verification');
-    if (gateReview && !reviewPassed) missing.push('code review');
-    if (gateSecurity && !securityPassed) missing.push('security audit');
-    if (requiresTmsCases && (isInQa || isVerified) && !testCasesRef) missing.push('test cases');
+    const missing = gateState.current_blockers;
 
     let next = null;
     if (!spec) next = 'Run Planning Agent to create/link a Spec.';
@@ -890,8 +900,10 @@ async function callTool(name, args) {
     else if (!safeLabelIncludes(labels, labelApproved) && !safeLabelIncludes(labels, labelInQa) && !safeLabelIncludes(labels, labelVerified) && !safeLabelIncludes(labels, labelReviewed)) {
       next = `Apply label ${labelApproved} (or run PM Governance Sync), then run Developer Agent.`;
     } else if (scmEnabled && !pr) next = 'Run Developer Agent to implement and create/link a PR.';
+    else if (safeLabelIncludes(labels, labelApproved)) next = 'Run Developer Agent.';
     else if (safeLabelIncludes(labels, labelInQa) && gateQa && !qaPassed) next = 'Run QA Engineer Agent to verify.';
     else if (safeLabelIncludes(labels, labelVerified) && gateReview && !reviewPassed) next = 'Run Code Reviewer Agent to review.';
+    else if ((safeLabelIncludes(labels, labelVerified) || safeLabelIncludes(labels, labelReviewed)) && gateSecurity && !securityPassed) next = 'Run Security Agent to audit.';
     else if (safeLabelIncludes(labels, labelVerified) && reviewPassed && securityPassed) next = 'Run Project Manager Agent to release.';
     else if (safeLabelIncludes(labels, labelReadyForPlan)) next = 'Run Planning Agent.';
     else if (safeLabelIncludes(labels, labelPlanReview)) next = 'Approve Spec (Spec Status: APPROVED), then run PM Governance Sync.';
@@ -908,6 +920,9 @@ async function callTool(name, args) {
       backends: { tracker: trackerBackendId, docs: docsBackendId, scm: scmBackendId },
       gates: { spec_approval: gateSpec, qa_verification: gateQa, code_review: gateReview, security_audit: gateSecurity },
       evidence,
+      stage: gateState.stage,
+      current_blockers: gateState.current_blockers,
+      future_gates: gateState.future_gates,
       missing,
       next
     };
