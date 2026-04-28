@@ -13,7 +13,7 @@ We release patches for security vulnerabilities regularly. Here's what versions 
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them via email at: **contact@klika.ba**
+Instead, please report them via email at: **support@klika.ba**
 
 You should receive a response within 48 hours. If for some reason you do not, please follow up via email to ensure we received your original message.
 
