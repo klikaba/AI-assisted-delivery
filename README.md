@@ -6,64 +6,70 @@
 [![GitHub Stars](https://img.shields.io/github/stars/klikaba/AI-assisted-delivery?style=social)](https://github.com/klikaba/AI-assisted-delivery/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/klikaba/AI-assisted-delivery?style=social)](https://github.com/klikaba/AI-assisted-delivery/network/members)
 
-**v0.7.0** | Portable, role-based Delivery OS for any host repository
+**v0.7.0** | Portable, role-based Delivery OS for host repositories
 
-Delivery OS is a governed SDLC workflow layer for AI agents.
+Delivery OS is a governed SDLC workflow layer for AI agents. Install it as `.agency` in a host repository to standardize roles, approvals, tracker integrations, and repeatable handoffs.
 
-It is installed as `.agency` in host repositories.
+| Key | Value |
+| --- | --- |
+| Install location | `.agency` inside the host repository |
+| Best demo path | Jira + Confluence with `scm.provider="none"` |
+| Bootstrap | `./.agency/bin/agency init --mode atlassian --docs atlassian` |
 
-## Why Delivery OS?
+## At A Glance
 
-Delivery OS enables organizations to accelerate software delivery using AI agents **without sacrificing governance, security, or accountability**. It provides:
+- Role-based agents for Product, Planning, Developer, QA, Review, PM, Security, Architecture, and DevOps
+- Human approval gates built into the workflow
+- Portable integrations for Jira, Confluence, GitHub, Linear, and offline/fake modes
 
-- **Controlled Automation** – Agents execute tasks only within approved states
-- **Human-in-the-Loop Governance** – All critical transitions require explicit human approval
-- **Security by Default** – Continuous scanning, policy enforcement, and auditability
-- **Enterprise Compatibility** – Works with existing tools (Jira, Confluence, GitHub, Linear)
-- **Portability** – Repository-agnostic, versioned, and upgradeable
+## Contents
 
-It gives teams:
+- [Requirements](#requirements)
+- [Quickstart](#quickstart)
+- [Demo Path](#demo-path)
+- [Included Components](#included-components)
+- [Workflow Roles](#workflow-roles)
+- [Reference](#reference)
+- [Get Help](#get-help)
+- [Contribute](#contribute)
+- [License](#license)
 
-- stable role prompts over a shared workflow contract
-- provider-agnostic tools over Jira, Confluence, GitHub, Linear, and optional TMS systems
-- human approval gates instead of fully autonomous agent execution
-- a portable workflow state machine based on `ai-state:*` labels plus spec approval
-- product-owned stage helpers for governed completion of Product, Planning, and Dev work
+## Requirements
 
-## Prerequisites
-
-- **Node.js 18+** – For running the Delivery OS MCP server and CLI tools
-- **Git** – For submodule installation and version control
-- **OpenCode CLI** – For agent orchestration (install with `npm install -g opencode`)
-
-## Start Here
-
-- [Delivery OS Overview](docs/DELIVERY_OS_OVERVIEW.md)
-- [Delivery OS Demo Runbook](docs/DEMO_RUNBOOK.md)
-- [Delivery OS Product Overview](docs/PRODUCT_OVERVIEW.md)
-- [Delivery OS Technical Reference](docs/TECHNICAL_REFERENCE.md)
-- [Delivery OS MCP Architecture](docs/architecture/agency-mcp-architecture.md)
-- [Delivery OS Hardening Checklist](docs/architecture/agency-hardening-checklist.md)
+- Node.js 18+
+- Git
+- OpenCode CLI, install with `npm install -g opencode`
 
 ## Quickstart
 
+Run the following from the host repository root, not from inside the `.agency` checkout.
+
 ```bash
-# Install OpenCode CLI (agent orchestration)
+# Install OpenCode CLI
 npm install -g opencode
 
-# Add Delivery OS as a git submodule
+# Add Delivery OS as a git submodule in the host repository
 git submodule add https://github.com/klikaba/AI-assisted-delivery.git .agency
 git submodule update --init --recursive
 
-# Initialize for your tracker backend
-./.agency/bin/agency init --mode atlassian  # or: github | linear | standalone
+# Initialize the host repository
+./.agency/bin/agency init --mode atlassian --docs atlassian
 
-# Commit the generated configuration
+# For the Jira + Confluence demo path, set scm.provider to "none"
+# in .agency-project.json before running OpenCode.
+
+# Commit the tracked generated configuration
 git add .agency-project.json .agency-rules.md .gitignore
 git commit -m "chore: configure .agency"
 
 # Start OpenCode with the generated config
 opencode --config opencode.jsonc
+```
+
+If you want the guided bootstrap instead:
+
+```bash
+./.agency/setup.sh
 ```
 
 If you get stuck:
@@ -74,9 +80,9 @@ If you get stuck:
 
 ## Demo Path
 
-The strongest current demo path is Jira + Confluence.
+The strongest current demo path is Jira + Confluence with `scm.provider="none"`.
 
-High-level flow:
+Recommended flow:
 
 1. Product refines a rough backlog item.
 2. Planning creates the implementation spec and execution plan.
@@ -84,7 +90,7 @@ High-level flow:
 4. PM syncs approval back to Jira labels.
 5. Dev, QA, Review, optional Security, and PM Release continue the governed workflow.
 
-The current product-owned completion helpers are:
+Primary workflow helpers:
 
 - `workflow.product_refine`
 - `workflow.plan_finalize`
@@ -92,15 +98,15 @@ The current product-owned completion helpers are:
 
 Use the detailed operator sequence in [Delivery OS Demo Runbook](docs/DEMO_RUNBOOK.md).
 
-## What This Repository Contains
+## Included Components
 
 - generated OpenCode config support
-- local Delivery OS MCP server
+- a local Delivery OS MCP server
 - provider adapters for Jira/Confluence, GitHub, Linear, and fake/offline mode
 - governed role prompts for the Delivery OS workflow
 - deterministic tests and simulated flows for regression protection
 
-## Current Product Shape
+## Workflow Roles
 
 Core workflow roles:
 
@@ -120,11 +126,20 @@ Optional specialist roles:
 - Architecture
 - DevOps
 
-## Support
+## Reference
+
+- [Delivery OS Overview](docs/DELIVERY_OS_OVERVIEW.md)
+- [Delivery OS Demo Runbook](docs/DEMO_RUNBOOK.md)
+- [Delivery OS Product Overview](docs/PRODUCT_OVERVIEW.md)
+- [Delivery OS Technical Reference](docs/TECHNICAL_REFERENCE.md)
+- [Delivery OS MCP Architecture](docs/architecture/agency-mcp-architecture.md)
+- [Delivery OS Hardening Checklist](docs/architecture/agency-hardening-checklist.md)
+
+## Get Help
 
 For questions, issues, or support requests, email: **support@klika.ba**
 
-## Contributing
+## Contribute
 
 - [Contributing Guide](CONTRIBUTING.md)
 - [Security Policy](.github/SECURITY.md)
@@ -134,14 +149,11 @@ For questions, issues, or support requests, email: **support@klika.ba**
 
 Apache 2.0 with attribution requirement.
 
-**If you use this software in a product or service, you must include the following attribution in your documentation, "About" section, or equivalent:**
+If you use this software in a product or service, include the attribution below in your documentation or About section:
 
-```
-"Built using the Klika AI Engineering Toolkit"
+```text
+Built using the Klika AI Engineering Toolkit
 https://github.com/klikaba/AI-assisted-delivery
 ```
 
-See:
-
-- [LICENSE](LICENSE)
-- [NOTICE](NOTICE)
+See [LICENSE](LICENSE) and [NOTICE](NOTICE).
